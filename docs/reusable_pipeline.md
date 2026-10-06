@@ -29,7 +29,7 @@ examples are excluded.
 | Horoscope | `sign`, `category`, `date` → `horoscope` | Split source train data | Inspect sign, category, and date use |
 | Conversation summary | `dialogue` → `summary` | Source train, validation, test | ROUGE-L word-overlap F1 plus factual review |
 | Concept sentence | `concepts` list → `target` | Keep identical concept sets together; public validation is test | Fraction of concepts appearing as exact words |
-| Emotion classification | `text` → numeric `label` | Source train, validation, test | Exact generated-label accuracy |
+| Emotion classification | `text` → numeric `label` | Source train, validation, test | Exact generated-label accuracy and macro-F1 |
 
 The concept check counts exact word forms, so `ski` and `skis` differ. ROUGE-L
 does not detect invented facts. Generation checks use greedy decoding on the

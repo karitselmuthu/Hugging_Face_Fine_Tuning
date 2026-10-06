@@ -27,15 +27,32 @@ def score_generations(task, examples):
     if not metric:
         return None
     if metric == "label_accuracy":
-        labels = set(settings["labels"])
+        labels = settings["labels"]
+        label_set = set(labels)
         predictions = []
         for case in examples:
             predicted = case["output"].strip().lower()
             predictions.append(predicted)
             case["predicted_label"] = predicted
         correct = sum(prediction == case["reference"].lower() for prediction, case in zip(predictions, examples))
+        per_label = {}
+        for label in labels:
+            true_positives = sum(prediction == label and case["reference"].lower() == label
+                                 for prediction, case in zip(predictions, examples))
+            false_positives = sum(prediction == label and case["reference"].lower() != label
+                                  for prediction, case in zip(predictions, examples))
+            false_negatives = sum(prediction != label and case["reference"].lower() == label
+                                  for prediction, case in zip(predictions, examples))
+            precision = true_positives / (true_positives + false_positives) if true_positives + false_positives else 0.0
+            recall = true_positives / (true_positives + false_negatives) if true_positives + false_negatives else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+            per_label[label] = {"support": true_positives + false_negatives,
+                                "predicted": true_positives + false_positives,
+                                "precision": precision, "recall": recall, "f1": f1}
         return {"metric": metric, "examples": len(examples), "accuracy": correct / len(examples),
-                "invalid_label_outputs": sum(prediction not in labels for prediction in predictions)}
+                "macro_f1": sum(values["f1"] for values in per_label.values()) / len(labels),
+                "per_label": per_label,
+                "invalid_label_outputs": sum(prediction not in label_set for prediction in predictions)}
     if metric == "concept_coverage_exact":
         output_coverage = []
         reference_coverage = []

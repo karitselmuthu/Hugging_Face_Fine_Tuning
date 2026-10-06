@@ -1435,6 +1435,48 @@ to use that metric without changing the historic record.
 
 ------------------------------------------------------------------------
 
+## 36. 6 October 2026 --- First full emotion-classification run
+
+The reusable pipeline trained a SmolLM2-135M LoRA adapter on 512 emotion
+examples and validated on 64. Training took 67.3 seconds in the recorded run.
+The adapter was evaluated on 128 held-out examples, with zero examples
+skipped for length. The untouched starting model was evaluated on the same
+slice and generation settings.
+
+| Model | Response loss | Strict label accuracy | Macro-F1 | Invalid label outputs |
+| --- | ---: | ---: | ---: | ---: |
+| Starting model | 4.0100 | 0/128 | 0.000 | 128/128 |
+| 512-example LoRA | 0.3958 | 85/128 (66.4%) | 0.382 | 0/128 |
+
+Strict accuracy accepts only an output that is exactly one of the six labels.
+The starting model often emitted a label followed by extra text, so its zero
+score is a format failure under this rule; it is not a general semantic
+classification comparison. The adapter produced valid labels, but its
+per-class results show uneven performance:
+
+| Label | Test examples | Correct | Recall |
+| --- | ---: | ---: | ---: |
+| sadness | 45 | 31 | 68.9% |
+| joy | 45 | 43 | 95.6% |
+| love | 6 | 0 | 0% |
+| anger | 17 | 10 | 58.8% |
+| fear | 10 | 1 | 10.0% |
+| surprise | 5 | 0 | 0% |
+
+The adapter never predicted `love` or `surprise` in these 128 examples.
+Most `love`, `surprise`, and `fear` cases were classified as `joy` or
+`sadness`. This small test slice has only five or six examples for the
+rarest labels, so full-test or stratified evaluation is needed before making
+a stable per-class claim. The saved evaluation JSON files are under
+`models/tasks/emotion_classification/lora-512/` and remain local.
+
+The next experiment should address class coverage before trying a larger
+base model: inspect label frequencies in the training sample, evaluate on a
+larger balanced or complete test set, then compare a larger or class-balanced
+training subset using the same held-out examples.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:

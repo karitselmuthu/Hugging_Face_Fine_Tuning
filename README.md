@@ -64,6 +64,8 @@ Preparation and training refuse to overwrite nonempty output directories. If a d
 
 For concept-list inference, pass [the example JSON file](examples/concept_sentence_input.json) with `--input-json`. For all commands and the task-file schema, see [the reusable pipeline guide](docs/reusable_pipeline.md).
 
+The first full emotion-classification experiment used 512 training examples. On 128 held-out examples, it returned an exact valid label for every case and got 85 correct (66.4% accuracy; 0.382 macro-F1). It did not predict `love` or `surprise` in that sample. The result and its limits are recorded in the [learning journal](hugging_face_fine_tuning_learnings.md).
+
 ## Add another dataset
 
 Copy a task file and change its `name`, `source`, `prompt_template`, `response_field`, and training settings. Each `{placeholder}` in the prompt must match a source column. `response_map` converts numeric labels to text; `field_transforms` handles simple string and list formatting. Prepare the data, inspect its splits, then train and evaluate. Each task writes to separate directories under `data/tasks/` and `models/tasks/`.
