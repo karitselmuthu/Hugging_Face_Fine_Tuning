@@ -95,9 +95,11 @@ This balanced test comparison is complete: accuracy rose from 52.0% to
 64.0% and macro-F1 from 0.469 to 0.624. `Surprise` recall rose from 2/25
 to 9/25; 16 of those 25 cases are still missed.
 
-For a fixed sample with the original test-set class mix, generate all 128
-answers for the new adapter. Compare with the saved 512-example test file only
-if it also contains the same 128 generated cases:
+The ordinary 128-case test comparison is also complete. It uses identical
+cases for both adapters and retains the sampled test split's label mix:
+accuracy rose from 72.7% to 78.1%, and macro-F1 from 0.539 to 0.568.
+Only five cases have the `surprise` label, and both adapters missed them all.
+These commands reproduce the evaluation and comparison:
 
 ```bash
 .venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-2000 --test-samples 128 --generation-examples 128 --device mps

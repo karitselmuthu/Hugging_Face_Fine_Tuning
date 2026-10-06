@@ -1633,6 +1633,43 @@ the rare-label diagnostic.
 
 ------------------------------------------------------------------------
 
+## 41. 6 October 2026 --- Ordinary test sample for the 2,000-example adapter
+
+The selected 2,000-example SmolLM2-360M + LoRA adapter was also evaluated
+on the same 128 ordinary **test** cases as the earlier 512-example adapter.
+The comparison verified identical prompts and references. This sample
+retains the test split's label mix rather than forcing equal class counts.
+
+| Training examples | Response loss | Exact accuracy | Macro-F1 | Invalid labels |
+| ---: | ---: | ---: | ---: | ---: |
+| 512 | 0.3823 | 93/128 (72.7%) | 0.539 | 1 |
+| 2,000 | 0.2859 | 100/128 (78.1%) | 0.568 | 0 |
+
+| Label | Support | 512 correct | 2,000 correct |
+| --- | ---: | ---: | ---: |
+| sadness | 45 | 28 | 34 |
+| joy | 45 | 43 | 43 |
+| love | 6 | 1 | 1 |
+| anger | 17 | 13 | 14 |
+| fear | 10 | 8 | 8 |
+| surprise | 5 | 0 | 0 |
+
+The 2,000-example adapter corrected ten cases missed by the 512-example
+adapter and lost three cases it previously got right. The gain is mainly in
+`sadness` on this sample. There are only five `surprise` examples here,
+and both models missed all five; the separate balanced test found 9/25
+`surprise` examples correct for the 2,000-example adapter. It also predicted
+`surprise` for three other cases on the ordinary sample, so those predictions
+were false positives. The balanced and ordinary samples answer different
+questions and should be reported together.
+
+The selected 2,000-example run now has both balanced and ordinary test
+results. Further training changes should be chosen using validation data,
+then checked on a new untouched test split where possible; repeatedly
+adjusting to these inspected test cases would overstate generalization.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:
