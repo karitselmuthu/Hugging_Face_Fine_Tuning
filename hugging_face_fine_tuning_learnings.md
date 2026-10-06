@@ -1470,10 +1470,15 @@ rarest labels, so full-test or stratified evaluation is needed before making
 a stable per-class claim. The saved evaluation JSON files are under
 `models/tasks/emotion_classification/lora-512/` and remain local.
 
+The selected 512 training examples contained 158 `joy`, 145 `sadness`,
+85 `anger`, 59 `fear`, 43 `love`, and 22 `surprise` labels. The model saw
+every class, but `love` and `surprise` had far fewer examples than the two
+most common labels. This imbalance may contribute to the missing predictions;
+the current run alone does not establish the cause.
+
 The next experiment should address class coverage before trying a larger
-base model: inspect label frequencies in the training sample, evaluate on a
-larger balanced or complete test set, then compare a larger or class-balanced
-training subset using the same held-out examples.
+base model: evaluate on a larger balanced or complete test set, then compare
+a larger or class-balanced training subset using the same held-out examples.
 
 ------------------------------------------------------------------------
 
