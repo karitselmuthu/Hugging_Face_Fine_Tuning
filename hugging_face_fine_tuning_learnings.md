@@ -1740,6 +1740,45 @@ preferable for this task. The commands are in the
 
 ------------------------------------------------------------------------
 
+## 44. 6 October 2026 --- Ordinary validation tradeoff
+
+The two 2,000-example SmolLM2-360M adapters were compared on the same
+ordinary 128-example **validation** sample. The comparison verified identical
+prompts and references. Neither model produced an invalid label.
+
+| Training subset | Response loss | Exact accuracy | Macro-F1 |
+| --- | ---: | ---: | ---: |
+| Original shuffled subset | 0.3238 | 94/128 (73.4%) | 0.670 |
+| Equal-count subset | 0.4011 | 90/128 (70.3%) | 0.612 |
+
+| Label | Support | Original correct | Equal-count correct |
+| --- | ---: | ---: | ---: |
+| sadness | 40 | 34 | 32 |
+| joy | 46 | 38 | 32 |
+| love | 14 | 6 | 9 |
+| anger | 13 | 8 | 8 |
+| fear | 13 | 7 | 8 |
+| surprise | 2 | 1 | 1 |
+
+The equal-count adapter corrected five cases the original adapter missed
+but lost nine it previously got right. Its `love` recall improved from
+6/14 to 9/14, but it predicted `love` 21 times versus eight for the
+original adapter, so `love` F1 fell from 0.545 to 0.514. `Joy` recall fell
+from 38/46 to 32/46. This sample contains only two `surprise` examples,
+so it cannot resolve `surprise` behavior as clearly as the balanced
+25-per-label validation slice.
+
+The experiments reveal a real choice: the original shuffled 2,000-example
+adapter performs better on this ordinary validation sample, while the
+equal-count adapter performs better on the balanced validation slice.
+For use with the original class mix and overall accuracy as the main goal,
+retain the original adapter as the provisional default. If rare-label recall
+is the main goal, the equal-count adapter is the better candidate, with
+the observed common-label cost. Choose the priority from the application
+requirements rather than the repeatedly inspected test data.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:

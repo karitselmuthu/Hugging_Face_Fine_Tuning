@@ -141,7 +141,14 @@ answers for both models and compare them:
 ```
 
 Review macro-F1, `love` and `surprise` recall, and ordinary-sample accuracy
-together. This ordinary validation comparison is still pending.
+together. The ordinary 128-example validation comparison is complete: the
+original shuffled adapter got 94/128 correct (73.4%, 0.670 macro-F1), while
+the equal-count adapter got 90/128 (70.3%, 0.612 macro-F1). Equal-count
+training improved `love` recall from 6/14 to 9/14 but lowered `joy` recall
+from 38/46 to 32/46. The ordinary sample contains only two `surprise`
+examples. Prefer the original adapter when the target label mix resembles
+the original dataset and overall accuracy is the main goal; keep the
+equal-count adapter as the candidate when rare labels matter more.
 
 ## Prepare and run
 

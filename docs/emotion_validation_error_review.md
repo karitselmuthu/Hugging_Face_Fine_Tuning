@@ -50,4 +50,9 @@ a two-step CPU training check. The complete balanced SmolLM2-360M MPS run
 then finished in 434.3 seconds. On the fixed 150-example balanced validation
 slice, accuracy rose from 60.7% to 70.7% and macro-F1 from 0.598 to 0.707.
 `Love` and `surprise` each rose to 19/25 correct, while `joy` recall fell
-from 24/25 to 20/25. The ordinary validation comparison is the next check.
+from 24/25 to 20/25. On the matching ordinary 128-example validation
+sample, the original shuffled adapter scored 73.4% accuracy and 0.670
+macro-F1; the equal-count adapter scored 70.3% and 0.612. Equal-count
+training improved `love` recall but reduced `joy` recall. The choice
+depends on whether the application values overall accuracy under the
+original label mix or more equal treatment of rare labels.
