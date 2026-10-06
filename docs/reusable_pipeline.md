@@ -15,6 +15,10 @@ original prompt fields for task-specific checks:
 {"prompt":"### Instruction:\nSummarize the conversation...\n### Summary:\n","response":"A and B agreed to meet on Friday.","inputs":{"dialogue":"A: ..."}}
 ```
 
+For the internal toolkit's file fingerprints, split-overlap audit, strict
+preparation flags, and offline checks, see the
+[safeguards guide](internal_toolkit.md).
+
 Training tokenizes these two fields separately. Prompt token labels are `-100`,
 so the loss is applied only to the response and EOS token. The train,
 validation, and test splits stay separate. The trainer **skips** examples
@@ -246,6 +250,7 @@ measure factual coverage before treating the adapter as useful.
    answer text. `source.data_files` supports Parquet files when a dataset
    repository script is incompatible with the installed `datasets` version.
    `source.group_field` keeps repeated inputs out of different splits.
+   Optional `source.revision` pins a dataset commit for new preparations.
 4. Set `max_length` and training options. `method` can be `lora` or `full`.
    `lora_targets` are model architecture dependent; the example targets fit
    SmolLM2's attention layers.

@@ -1793,6 +1793,34 @@ contains runnable commands from the repository root.
 
 ------------------------------------------------------------------------
 
+## 46. 6 October 2026 --- Internal toolkit reliability baseline
+
+The reusable pipeline now validates task configuration before loading a
+dataset, writes prepared data through a temporary directory, and records
+row counts plus SHA-256 hashes for the three splits and task config. New
+training runs save those fingerprints; evaluation rejects changed prepared
+files before loading model weights. Existing historical runs remain readable
+but have no retroactive training-data fingerprint.
+
+The new data audit reports exact prompts shared across splits. The existing
+emotion preparation has 5 train/validation, 11 train/test, and 3
+validation/test shared prompts. A strict flag can reject overlap, or a new
+preparation can remove lower-priority duplicates while preserving test,
+then validation, rows. This changes the dataset and requires a separate
+training/evaluation run. An earlier count of 15,969 referred to **distinct
+training prompts**, not rows; the file has 16,000 rows as its manifest says.
+
+Seven offline checks cover config rejection, preparation cleanup, hashes,
+and overlap handling. A two-step CPU train/evaluate run verified that new
+run fingerprints pass through to evaluation, and a changed test file was
+rejected before weights loaded. Direct dependency versions are pinned and
+GitHub Actions runs the offline checks. The
+[internal toolkit guide](docs/internal_toolkit.md) gives commands and
+remaining limits; these checks do not establish model quality or production
+deployment readiness.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:

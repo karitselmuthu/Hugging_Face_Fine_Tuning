@@ -14,6 +14,8 @@ src/                     Reusable task pipeline
   evaluate_task.py        Score validation or test examples and save generations
   infer_task.py           Generate from a saved run
   compare_label_evaluations.py  Compare classification runs on matching cases
+  audit_task_data.py      Check prepared file integrity and split overlap
+  data_integrity.py       File fingerprints and exact-prompt overlap checks
   task_core.py            Shared task and model helpers
   task_metrics.py         Task-specific generation checks
   horoscope_experiments/ Earlier step-by-step horoscope and QLoRA scripts
@@ -34,7 +36,26 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-The reusable PyTorch path was last run with Python 3.14.7, PyTorch 2.14.0, Transformers 5.17.0, Datasets 5.0.1, Accelerate 1.15.0, and PEFT 0.21.2. Apple Silicon can use MPS when PyTorch reports it available; CPU also works. MLX QLoRA and CUDA bitsandbytes have separate requirement files and are described in the [experiment guide](docs/horoscope_experiments.md).
+The reusable PyTorch path was last run with Python 3.14.7, PyTorch 2.14.0, Transformers 5.17.0, Datasets 5.0.1, Accelerate 1.15.0, and PEFT 0.21.2. These direct dependency versions are pinned in `requirements.txt`; transitive dependencies are not fully locked. Apple Silicon can use MPS when PyTorch reports it available; CPU also works. MLX QLoRA and CUDA bitsandbytes have separate requirement files and are described in the [experiment guide](docs/horoscope_experiments.md).
+
+## Internal toolkit checks
+
+Run the offline checks before changing task preparation or training code:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python src/audit_task_data.py --data-dir data/tasks/emotion_classification
+```
+
+New preparations record file hashes, row counts, and exact-prompt overlap in
+their manifest. New training runs record the same file hashes; evaluation
+rejects changed data before loading model weights. For a clean new data
+directory, add `--deduplicate-cross-split --fail-on-overlap` to
+`src/prepare_task.py`. Keep historical prepared data and model runs in their
+existing directories; a clean re-preparation changes the comparison set.
+See [internal toolkit safeguards](docs/internal_toolkit.md) for commands,
+limitations, and the next operating steps. Pull requests run the offline
+checks in GitHub Actions.
 
 ## Run a first task
 

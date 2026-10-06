@@ -15,24 +15,87 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load_task(path):
     task = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(task, dict):
+        raise ValueError("Task config must be a JSON object")
     required = ("name", "source", "prompt_template", "response_field", "base_model", "max_length", "training")
     missing = [key for key in required if key not in task]
     if missing:
         raise ValueError(f"Task config is missing: {', '.join(missing)}")
-    if not re.fullmatch(r"[a-z][a-z0-9_]*", task["name"]):
+    if not isinstance(task["name"], str) or not re.fullmatch(r"[a-z][a-z0-9_]*", task["name"]):
         raise ValueError("Task name must use lowercase letters, digits, and underscores")
-    if int(task["max_length"]) < 32:
+    if not isinstance(task["source"], dict) or not isinstance(task["source"].get("dataset"), str) or not task["source"]["dataset"].strip():
+        raise ValueError("source.dataset must be a nonempty string")
+    source = task["source"]
+    for key in ("train_split", "validation_split", "test_split", "config", "group_field", "revision"):
+        if source.get(key) is not None and (not isinstance(source[key], str) or not source[key].strip()):
+            raise ValueError(f"source.{key} must be a nonempty string or null")
+    if "heldout_fraction" in source and (not isinstance(source["heldout_fraction"], (int, float))
+                                         or isinstance(source["heldout_fraction"], bool)
+                                         or not 0 < source["heldout_fraction"] < 1):
+        raise ValueError("source.heldout_fraction must be between 0 and 1")
+    if "data_files" in source and not isinstance(source["data_files"], (str, list, dict)):
+        raise ValueError("source.data_files must be a path, list, or split-to-path mapping")
+    for key in ("prompt_template", "response_field", "base_model"):
+        if not isinstance(task[key], str) or not task[key].strip():
+            raise ValueError(f"{key} must be a nonempty string")
+    if type(task["max_length"]) is not int or task["max_length"] < 32:
         raise ValueError("max_length must be at least 32")
     fields = []
-    for _, field, spec, conversion in string.Formatter().parse(task["prompt_template"]):
-        if field is not None:
-            if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", field) or spec or conversion:
-                raise ValueError("Prompt placeholders must be simple field names")
-            fields.append(field)
+    try:
+        for _, field, spec, conversion in string.Formatter().parse(task["prompt_template"]):
+            if field is not None:
+                if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", field) or spec or conversion:
+                    raise ValueError("Prompt placeholders must be simple field names")
+                fields.append(field)
+    except ValueError as exc:
+        raise ValueError(f"Invalid prompt_template: {exc}") from exc
     if not fields:
         raise ValueError("Prompt template needs at least one input field")
     task["input_fields"] = list(dict.fromkeys(fields))
+    transforms = task.get("field_transforms", {})
+    if not isinstance(transforms, dict) or any(field not in task["input_fields"] or mode not in ("strip", "title", "lower", "join_comma")
+                                               for field, mode in transforms.items()):
+        raise ValueError("field_transforms must map prompt fields to strip, title, lower, or join_comma")
+    if not isinstance(task.get("response_map", {}), dict):
+        raise ValueError("response_map must be a JSON object")
+    settings = task["training"]
+    if not isinstance(settings, dict) or settings.get("method") not in ("full", "lora"):
+        raise ValueError("training.method must be full or lora")
+    for key in ("train_samples", "validation_samples", "batch_size", "gradient_accumulation_steps"):
+        if type(settings.get(key)) is not int or settings[key] < 1:
+            raise ValueError(f"training.{key} must be a positive integer")
+    for key in ("learning_rate", "epochs"):
+        if type(settings.get(key)) not in (int, float) or settings[key] <= 0:
+            raise ValueError(f"training.{key} must be positive")
+    if settings["method"] == "lora":
+        for key in ("lora_rank", "lora_alpha"):
+            if type(settings.get(key)) is not int or settings[key] < 1:
+                raise ValueError(f"training.{key} must be a positive integer")
+        if type(settings.get("lora_dropout")) not in (int, float) or not 0 <= settings["lora_dropout"] < 1:
+            raise ValueError("training.lora_dropout must be between 0 and 1")
+        targets = settings.get("lora_targets")
+        if not isinstance(targets, list) or not targets or any(not isinstance(value, str) or not value.strip() for value in targets):
+            raise ValueError("training.lora_targets must be a nonempty list of module names")
+    if "gradient_checkpointing" in settings and type(settings["gradient_checkpointing"]) is not bool:
+        raise ValueError("training.gradient_checkpointing must be true or false")
+    if "torch_empty_cache_steps" in settings and (type(settings["torch_empty_cache_steps"]) is not int or settings["torch_empty_cache_steps"] < 1):
+        raise ValueError("training.torch_empty_cache_steps must be a positive integer")
+    evaluation = task.get("evaluation", {})
+    if not isinstance(evaluation, dict) or evaluation.get("metric") not in (None, "label_accuracy", "concept_coverage_exact", "rouge_l_f1"):
+        raise ValueError("evaluation.metric is unsupported")
+    if evaluation.get("metric") == "label_accuracy":
+        labels = evaluation.get("labels")
+        if not isinstance(labels, list) or not labels or any(not isinstance(label, str) or not label.strip() for label in labels) or len(set(labels)) != len(labels):
+            raise ValueError("evaluation.labels must be a nonempty list of unique labels")
+    for key in ("generation_examples", "max_new_tokens"):
+        if key in evaluation and (type(evaluation[key]) is not int or evaluation[key] < 1):
+            raise ValueError(f"evaluation.{key} must be a positive integer")
     return task
+
+
+def preparation_spec(task):
+    """Fields that determine the prepared prompts, responses, and splits."""
+    return {key: task.get(key) for key in ("name", "source", "prompt_template", "response_field", "response_map", "field_transforms")}
 
 
 def format_prompt(task, values):

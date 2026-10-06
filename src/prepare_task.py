@@ -3,10 +3,14 @@
 import argparse
 import json
 import random
+import shutil
+import tempfile
+import warnings
 from pathlib import Path
 
 from datasets import Dataset, load_dataset
 
+from data_integrity import deduplicate_cross_split_prompts, prompt_overlap, snapshot_prepared_data
 from task_core import format_prompt, load_task, prepared_dir
 
 
@@ -32,6 +36,8 @@ def split_source(task, local_jsonl=None, heldout_fraction=None, seed=42):
         validation = test = None
     else:
         load_kwargs = {"data_files": source["data_files"]} if source.get("data_files") else {}
+        if source.get("revision"):
+            load_kwargs["revision"] = source["revision"]
         dataset = load_dataset(source["dataset"], source["config"], **load_kwargs) if source.get("config") else load_dataset(source["dataset"], **load_kwargs)
         train = dataset[source.get("train_split", "train")]
         validation = dataset[source["validation_split"]] if source.get("validation_split") else None
@@ -100,6 +106,10 @@ def main():
     parser.add_argument("--local-jsonl", type=Path, help="Optional local JSONL source for an offline smoke test")
     parser.add_argument("--heldout-fraction", type=float, help="Used when source has no validation/test splits")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--fail-on-overlap", action="store_true",
+                        help="Reject exact prompts shared across train, validation, or test")
+    parser.add_argument("--deduplicate-cross-split", action="store_true",
+                        help="Keep held-out rows and drop lower-priority rows with the same prompt")
     args = parser.parse_args()
     task = load_task(args.task)
     output_dir = args.output_dir or prepared_dir(task)
@@ -108,20 +118,41 @@ def main():
     splits = split_source(task, args.local_jsonl, args.heldout_fraction, args.seed)
     for name, dataset in splits.items():
         check_columns(dataset, task, name)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    counts = {name: write_split(dataset, task, output_dir / f"{name}.jsonl")
-              for name, dataset in splits.items()}
-    if min(counts.values()) == 0:
-        raise ValueError("A prepared split is empty; choose a larger source dataset")
-    manifest = {
-        "task": task["name"],
-        "source": str(args.local_jsonl) if args.local_jsonl else task["source"].get("repository", task["source"]["dataset"]),
-        "seed": args.seed,
-        "counts": counts,
-        "format": "prompt/response JSONL",
-    }
-    (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    (output_dir / "task_config.json").write_text(args.task.read_text(encoding="utf-8"))
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.tmp-", dir=output_dir.parent))
+    try:
+        counts = {name: write_split(dataset, task, staging / f"{name}.jsonl")
+                  for name, dataset in splits.items()}
+        removed = deduplicate_cross_split_prompts(staging) if args.deduplicate_cross_split else {}
+        if removed:
+            counts = {name: counts[name] - removed[name] for name in counts}
+        if min(counts.values()) == 0:
+            raise ValueError("A prepared split is empty; choose a larger source dataset")
+        (staging / "task_config.json").write_text(args.task.read_text(encoding="utf-8"), encoding="utf-8")
+        artifacts = snapshot_prepared_data(staging)
+        overlap = prompt_overlap(staging)
+        if any(overlap.values()):
+            if args.fail_on_overlap:
+                raise ValueError(f"Cross-split prompt overlap found: {overlap}")
+            warnings.warn(f"Cross-split prompt overlap found: {overlap}; use --fail-on-overlap for a strict preparation",
+                          stacklevel=1)
+        manifest = {
+            "task": task["name"],
+            "source": str(args.local_jsonl) if args.local_jsonl else task["source"].get("repository", task["source"]["dataset"]),
+            "seed": args.seed,
+            "counts": counts,
+            "format": "prompt/response JSONL",
+            "artifacts": artifacts,
+            "prompt_overlap": overlap,
+            "removed_cross_split": removed,
+        }
+        (staging / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        if output_dir.exists():
+            output_dir.rmdir()  # Only an empty directory may be replaced.
+        staging.replace(output_dir)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     print(f"Prepared {task['name']} in {output_dir}: {counts}")
     print("Example prompt:\n" + json.loads((output_dir / "train.jsonl").read_text().splitlines()[0])["prompt"])
 

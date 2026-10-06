@@ -10,7 +10,8 @@ from datasets import Dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
-from task_core import ROOT, ResponseOnlyCollator, encode_example, load_task, prepared_dir, read_jsonl
+from data_integrity import verify_prepared_data
+from task_core import ROOT, ResponseOnlyCollator, encode_example, load_task, preparation_spec, prepared_dir, read_jsonl
 
 
 def select_encoded(path, tokenizer, max_length, limit, seed, balanced_labels=None):
@@ -98,8 +99,9 @@ def main():
         if not (data_dir / f"{name}.jsonl").is_file():
             parser.error(f"Missing prepared {name} data: {data_dir}")
     prepared = load_task(data_dir / "task_config.json")
-    if prepared["prompt_template"] != task["prompt_template"] or prepared["name"] != task["name"]:
-        parser.error("Prepared data uses a different task prompt; rerun prepare_task.py")
+    if preparation_spec(prepared) != preparation_spec(task):
+        parser.error("Prepared data uses different source, fields, or prompt settings; rerun prepare_task.py")
+    prepared_artifacts = verify_prepared_data(data_dir)
 
     starting_model = args.starting_model or task["base_model"]
     tokenizer = AutoTokenizer.from_pretrained(starting_model)
@@ -162,6 +164,7 @@ def main():
         "train_sampling": {"method": "balanced_per_label" if args.balanced_train else "random",
                            "label_counts": train_label_counts} if args.balanced_train else {"method": "random"},
         "max_length": task["max_length"], "seed": args.seed,
+        "prepared_artifacts": prepared_artifacts,
         "train_metrics": train_metrics, "validation_metrics": validation_metrics,
         "final_dir": str(final_dir),
     }

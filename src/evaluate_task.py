@@ -9,7 +9,8 @@ from pathlib import Path
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from task_core import choose_device, encode_example, load_saved_run, load_task, prepared_dir, read_jsonl
+from data_integrity import verify_prepared_data
+from task_core import choose_device, encode_example, load_saved_run, load_task, preparation_spec, prepared_dir, read_jsonl
 from task_metrics import score_generations
 
 
@@ -63,10 +64,11 @@ def main():
         parser.error("sample counts and max-new-tokens must be positive")
     data_dir = args.data_dir or prepared_dir(task)
     prepared = load_task(data_dir / "task_config.json")
-    if prepared["name"] != task["name"] or prepared["prompt_template"] != task["prompt_template"]:
-        parser.error("Prepared data and saved run use different prompts")
+    if preparation_spec(prepared) != preparation_spec(task):
+        parser.error("Prepared data and saved run use different source, fields, or prompt settings")
+    summary = json.loads((args.run_dir / "run_summary.json").read_text(encoding="utf-8"))
+    prepared_artifacts = verify_prepared_data(data_dir, summary.get("prepared_artifacts"))
     if args.base_only:
-        summary = json.loads((args.run_dir / "run_summary.json").read_text())
         tokenizer = AutoTokenizer.from_pretrained(args.run_dir / "final", local_files_only=True)
         model = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto")
         model = model.to(choose_device(args.device))
@@ -124,6 +126,7 @@ def main():
         "model": "starting_model" if args.base_only else "trained_run",
         "sampling": {"method": "balanced_per_label", "per_label": args.balanced_per_label, "seed": summary["seed"]}
                     if balanced else {"method": "random", "seed": summary["seed"]},
+        "prepared_artifacts": prepared_artifacts,
         f"{args.split}_examples": scored, "skipped_for_length": skipped,
         "response_tokens": total_tokens, "response_loss": total_loss / total_tokens,
         "response_perplexity": math.exp(total_loss / total_tokens),
