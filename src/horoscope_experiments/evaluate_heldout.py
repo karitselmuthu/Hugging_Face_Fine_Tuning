@@ -12,7 +12,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TEST_DATA_PATH = PROJECT_ROOT / "data/processed/test"
 MODEL_PATHS = {
     "response-only-512": PROJECT_ROOT / "models/smollm-horoscope-response-only-512/final",

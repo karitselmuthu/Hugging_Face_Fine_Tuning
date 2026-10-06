@@ -9,7 +9,7 @@ from mlx_lm import generate, load
 from mlx_lm.sample_utils import make_logits_processors, make_sampler
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():

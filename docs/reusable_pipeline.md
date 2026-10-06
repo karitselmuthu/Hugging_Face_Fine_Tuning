@@ -2,10 +2,11 @@
 
 The project has two parts:
 
-- `src/prepare_dataset.py`, `src/train_response_only.py`, and the other
-  horoscope scripts preserve the completed learning experiments.
-- `tasks/*.json` plus `src/{prepare,train,evaluate,infer}_task.py` provide a
-  reusable path for a new text input → text output task.
+- `src/horoscope_experiments/` contains the earlier horoscope and QLoRA
+  learning scripts.
+- `tasks/*.json` plus the `src/{prepare,train,evaluate,infer}_task.py`
+  entry points provide a reusable path for a new text input → text output
+  task. `src/task_core.py` and `src/task_metrics.py` hold shared logic.
 
 The shared prepared format is one JSON object per line. `inputs` retains the
 original prompt fields for task-specific checks:

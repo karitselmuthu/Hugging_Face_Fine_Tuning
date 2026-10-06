@@ -7,7 +7,7 @@ from pathlib import Path
 from datasets import load_from_disk
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = ROOT / "models/smollm2-135m-mlx-4bit"
 MARKER = "### Horoscope:\n"
 # Keep the prompt format used by the PyTorch experiments. MLX-LM's

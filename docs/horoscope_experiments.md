@@ -1,13 +1,19 @@
 # Horoscope experiment commands
 
-These historical scripts show the project progression before the reusable task pipeline. Run commands from the repository root. They require locally prepared data or saved models; neither is included in Git. Generated evaluation files under `results/` are local too. For the public starting path, see the [README](../README.md) and [reusable pipeline guide](reusable_pipeline.md).
+These historical scripts live in
+[`src/horoscope_experiments/`](../src/horoscope_experiments/README.md) and show
+the project progression before the reusable task pipeline. Run commands from
+the repository root. They require locally prepared data or saved models;
+neither is included in Git. Generated evaluation files under `results/` are
+local too. For the public starting path, see the [README](../README.md) and
+[reusable pipeline guide](reusable_pipeline.md).
 
 ## Run the saved model
 
 From the project root:
 
 ```bash
-.venv/bin/python src/inference_response_only.py
+.venv/bin/python src/horoscope_experiments/inference_response_only.py
 ```
 
 This script uses the 2,000-example response-only model and a prompt configured
@@ -16,7 +22,7 @@ in the script.
 ## Compare input sensitivity
 
 ```bash
-.venv/bin/python src/evaluate_input_sensitivity.py
+.venv/bin/python src/horoscope_experiments/evaluate_input_sensitivity.py
 ```
 
 The comparison runs four prompts against each of the 512-example and
@@ -28,8 +34,8 @@ results to `results/input_sensitivity.json`.
 To change the output length or run without a GPU:
 
 ```bash
-.venv/bin/python src/evaluate_input_sensitivity.py --max-new-tokens 100
-.venv/bin/python src/evaluate_input_sensitivity.py --device cpu
+.venv/bin/python src/horoscope_experiments/evaluate_input_sensitivity.py --max-new-tokens 100
+.venv/bin/python src/horoscope_experiments/evaluate_input_sensitivity.py --device cpu
 ```
 
 These four prompts are a first diagnostic, not a quality score. Review whether
@@ -39,7 +45,7 @@ conclusions or starting another training run.
 ## Evaluate on held-out examples
 
 ```bash
-.venv/bin/python src/evaluate_heldout.py
+.venv/bin/python src/horoscope_experiments/evaluate_heldout.py
 ```
 
 This scores both response-only models on the same 128 examples from the saved
@@ -55,7 +61,7 @@ requested sign, category, and date. The first run is summarized in
 ## Audit data and sequence length
 
 ```bash
-.venv/bin/python src/analyze_training_data.py
+.venv/bin/python src/horoscope_experiments/analyze_training_data.py
 ```
 
 The audit writes `results/training_data_audit.md` and its JSON companion.
@@ -76,7 +82,7 @@ Train an adapter on the same 512-example subset used by the earlier full
 fine-tuning experiment:
 
 ```bash
-.venv/bin/python src/train_lora.py --method lora --train-samples 512 --eval-samples 64
+.venv/bin/python src/horoscope_experiments/train_lora.py --method lora --train-samples 512 --eval-samples 64
 ```
 
 The adapter is saved in `models/smollm-horoscope-lora-512/final`. It contains
@@ -84,8 +90,8 @@ only the adapter weights; loading it for inference also loads the original
 `HuggingFaceTB/SmolLM2-135M` base model.
 
 ```bash
-.venv/bin/python src/inference_lora.py --sign Taurus --category Career --date 2026/10/04
-.venv/bin/python src/evaluate_heldout.py --include-lora
+.venv/bin/python src/horoscope_experiments/inference_lora.py --sign Taurus --category Career --date 2026/10/04
+.venv/bin/python src/horoscope_experiments/evaluate_heldout.py --include-lora
 ```
 
 The comparison is in `results/heldout_lora_comparison.md`. On the same 128
@@ -106,7 +112,7 @@ the PyTorch/PEFT adapter format. From the project root:
 python3.13 -m venv .venv-mlx
 .venv-mlx/bin/python -m pip install -r requirements-mlx-qlora.txt
 .venv-mlx/bin/python -m mlx_lm convert --hf-path HuggingFaceTB/SmolLM2-135M --mlx-path models/smollm2-135m-mlx-4bit --quantize --q-bits 4 --q-group-size 64
-.venv-mlx/bin/python src/prepare_mlx_qlora.py --train-samples 32 --valid-samples 8
+.venv-mlx/bin/python src/horoscope_experiments/prepare_mlx_qlora.py --train-samples 32 --valid-samples 8
 .venv-mlx/bin/python -m mlx_lm lora --config configs/mlx_qlora_smoke.yaml
 ```
 
@@ -122,10 +128,10 @@ A 512-example follow-up completed on this Mac. To reproduce its training,
 held-out scoring, and 12-prompt review:
 
 ```bash
-.venv-mlx/bin/python src/prepare_mlx_qlora.py --train-samples 512 --valid-samples 64 --test-samples 128 --output-dir data/mlx-qlora-512
+.venv-mlx/bin/python src/horoscope_experiments/prepare_mlx_qlora.py --train-samples 512 --valid-samples 64 --test-samples 128 --output-dir data/mlx-qlora-512
 .venv-mlx/bin/python -m mlx_lm lora --config configs/mlx_qlora_512.yaml
 .venv-mlx/bin/python -m mlx_lm lora --model models/smollm2-135m-mlx-4bit --data data/mlx-qlora-512 --adapter-path models/smollm-horoscope-mlx-qlora-512 --test --mask-prompt --batch-size 1 --max-seq-length 256 --test-batches 128
-.venv-mlx/bin/python src/review_mlx_qlora.py
+.venv-mlx/bin/python src/horoscope_experiments/review_mlx_qlora.py
 ```
 
 The adapter's held-out loss was 2.998 versus 3.902 for the 4-bit base.
@@ -147,12 +153,12 @@ To generate from the saved MLX adapter, pass the full prompt with
 
 ## QLoRA on a CUDA machine with bitsandbytes
 
-The separate PyTorch QLoRA option in `src/train_lora.py` uses bitsandbytes NF4
+The separate PyTorch QLoRA option in `src/horoscope_experiments/train_lora.py` uses bitsandbytes NF4
 loading and requires a supported CUDA GPU. On that machine, run:
 
 ```bash
 python -m pip install -r requirements-qlora.txt
-python src/train_lora.py --method qlora --train-samples 512 --eval-samples 64
+python src/horoscope_experiments/train_lora.py --method qlora --train-samples 512 --eval-samples 64
 ```
 
 The CUDA bitsandbytes path has not been executed in this project. The Mac MLX

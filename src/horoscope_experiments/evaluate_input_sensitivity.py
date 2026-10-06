@@ -8,7 +8,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODEL_PATHS = {
     "response-only-512": PROJECT_ROOT / "models/smollm-horoscope-response-only-512/final",
     "response-only-2000": PROJECT_ROOT / "models/smollm-horoscope-response-only-2000/final",

@@ -8,7 +8,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASE_MODEL = "HuggingFaceTB/SmolLM2-135M"
 DEFAULT_ADAPTER = ROOT / "models/smollm-horoscope-lora-512/final"
 

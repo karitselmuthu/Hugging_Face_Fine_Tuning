@@ -10,7 +10,7 @@ from datasets import load_from_disk
 from transformers import AutoTokenizer
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 TOKENIZER_PATH = ROOT / "models/smollm-horoscope-response-only-2000/final"
 OUTPUT_PATH = ROOT / "results/training_data_audit.json"
 LIMITS = (128, 256, 384, 512)

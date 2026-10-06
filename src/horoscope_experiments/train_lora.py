@@ -16,7 +16,7 @@ from transformers import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASE_MODEL = "HuggingFaceTB/SmolLM2-135M"
 MAX_LENGTH = 256
 SEED = 42

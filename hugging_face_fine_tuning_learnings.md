@@ -154,7 +154,7 @@ Instead of doing all processing inside the training script, dataset
 preparation was moved into:
 
 ``` text
-src/prepare_dataset.py
+src/horoscope_experiments/prepare_dataset.py
 ```
 
 The raw dataset is converted into instruction-formatted text and saved
@@ -1181,7 +1181,7 @@ Current priorities after the 5 October evaluations, in a useful order:
 
 ## 30. LoRA and QLoRA experiment
 
-`src/train_lora.py` now trains a response-only LoRA adapter on the same
+`src/horoscope_experiments/train_lora.py` now trains a response-only LoRA adapter on the same
 512-example subset used for the earlier full fine-tuning experiment. It adapts
 the attention query and value projections (`q_proj` and `v_proj`) while leaving
 the base model frozen. The run updated 460,800 of 134,975,808 parameters
@@ -1202,7 +1202,7 @@ show that LoRA is inherently better than full fine-tuning. Generated outputs
 still need review for sign, category, and date control. Full outputs are in
 `results/heldout_lora_comparison.md`.
 
-`src/inference_lora.py` loads the base model and adapter and accepts sign,
+`src/horoscope_experiments/inference_lora.py` loads the base model and adapter and accepts sign,
 category, date, device, and output-length options. A QLoRA option using
 bitsandbytes NF4 is present in the PyTorch training script for a supported
 CUDA GPU; that CUDA route has not been run here.
@@ -1245,7 +1245,7 @@ weight after quantization overhead.
 
 ### Preserve the response-only training objective
 
-`src/prepare_mlx_qlora.py` exported the same prepared train/test split to
+`src/horoscope_experiments/prepare_mlx_qlora.py` exported the same prepared train/test split to
 MLX-LM's prompt/completion JSONL format. It also wrote a tokenizer template
 that concatenates the existing raw prompt and target response without adding
 chat role markers. A tokenization check showed the prompt token IDs matched
@@ -1254,7 +1254,7 @@ only to the response. The first checked example had 52 prompt tokens and 121
 response tokens, including the end-of-sequence token.
 
 ``` bash
-.venv-mlx/bin/python src/prepare_mlx_qlora.py \
+.venv-mlx/bin/python src/horoscope_experiments/prepare_mlx_qlora.py \
     --train-samples 32 --valid-samples 8
 .venv-mlx/bin/python -m mlx_lm lora \
     --config configs/mlx_qlora_smoke.yaml
@@ -1281,7 +1281,7 @@ This was a **pipeline test**: 4-bit conversion, response-only data preparation,
 training, validation, saving, and loading all worked on the Mac. A meaningful
 quality comparison needs a longer MLX run and held-out evaluation. The MLX
 adapter must be evaluated through MLX tooling; it cannot be loaded by
-`src/inference_lora.py`, which expects a PyTorch/PEFT adapter. See
+`src/horoscope_experiments/inference_lora.py`, which expects a PyTorch/PEFT adapter. See
 `results/mlx_qlora_smoke.md` and the [MLX-LM LoRA/QLoRA guide](https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md).
 
 ------------------------------------------------------------------------
@@ -1295,10 +1295,10 @@ batch size 1, rank 8, 16 adapted layers, response-only masking, and a
 `models/smollm-horoscope-mlx-qlora-512`.
 
 ``` bash
-.venv-mlx/bin/python src/prepare_mlx_qlora.py --train-samples 512 --valid-samples 64 --test-samples 128 --output-dir data/mlx-qlora-512
+.venv-mlx/bin/python src/horoscope_experiments/prepare_mlx_qlora.py --train-samples 512 --valid-samples 64 --test-samples 128 --output-dir data/mlx-qlora-512
 .venv-mlx/bin/python -m mlx_lm lora --config configs/mlx_qlora_512.yaml
 .venv-mlx/bin/python -m mlx_lm lora --model models/smollm2-135m-mlx-4bit --data data/mlx-qlora-512 --adapter-path models/smollm-horoscope-mlx-qlora-512 --test --mask-prompt --batch-size 1 --max-seq-length 256 --test-batches 128
-.venv-mlx/bin/python src/review_mlx_qlora.py
+.venv-mlx/bin/python src/horoscope_experiments/review_mlx_qlora.py
 ```
 
 Validation loss fell from 3.893 to 2.970. On the same 128 held-out examples
@@ -1776,6 +1776,20 @@ retain the original adapter as the provisional default. If rare-label recall
 is the main goal, the equal-count adapter is the better candidate, with
 the observed common-label cost. Choose the priority from the application
 requirements rather than the repeatedly inspected test data.
+
+------------------------------------------------------------------------
+
+## 45. 6 October 2026 --- Source-folder organization
+
+The reusable task entry points and helpers stay directly under `src/` so
+the documented `src/prepare_task.py`, `src/train_task.py`,
+`src/evaluate_task.py`, and `src/infer_task.py` commands still work. The 16
+earlier horoscope learning scripts now live in
+`src/horoscope_experiments/`. Their project-root path calculations and all
+documented commands were updated for the new location. The
+[folder guide](src/horoscope_experiments/README.md) groups those scripts by
+experiment stage; the [horoscope experiment guide](docs/horoscope_experiments.md)
+contains runnable commands from the repository root.
 
 ------------------------------------------------------------------------
 

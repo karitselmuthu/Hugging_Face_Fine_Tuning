@@ -8,19 +8,22 @@ Fine-tune `HuggingFaceTB/SmolLM2-135M` on a text task by changing a JSON task fi
 configs/                 MLX QLoRA experiment settings
 examples/                Small inference inputs
 tasks/                   Dataset, prompt, training, and evaluation settings
-src/prepare_task.py      Build prompt/response train, validation, and test files
-src/train_task.py        Train a full model or LoRA adapter
-src/evaluate_task.py     Score held-out examples and save generations
-src/infer_task.py        Generate from a saved run
-src/task_core.py         Shared task and model helpers
-src/task_metrics.py      Task-specific generation checks
+src/                     Reusable task pipeline
+  prepare_task.py         Build prompt/response train, validation, and test files
+  train_task.py           Train a full model or LoRA adapter
+  evaluate_task.py        Score validation or test examples and save generations
+  infer_task.py           Generate from a saved run
+  compare_label_evaluations.py  Compare classification runs on matching cases
+  task_core.py            Shared task and model helpers
+  task_metrics.py         Task-specific generation checks
+  horoscope_experiments/ Earlier step-by-step horoscope and QLoRA scripts
 docs/                    Workflow and experiment notes
 data/                    Downloaded and prepared datasets (local only)
 models/                  Checkpoints and adapters (local only)
 results/                 Generated evaluations (local only)
 ```
 
-The other scripts in `src/` preserve the step-by-step horoscope and QLoRA experiments. See [the experiment guide](docs/horoscope_experiments.md) and [learning journal](hugging_face_fine_tuning_learnings.md).
+The scripts in [src/horoscope_experiments](src/horoscope_experiments/README.md) preserve the step-by-step horoscope and QLoRA experiments. Run commands from the project root; see [the experiment guide](docs/horoscope_experiments.md) and [learning journal](hugging_face_fine_tuning_learnings.md).
 
 ## Set up
 
