@@ -74,10 +74,35 @@ been inspected repeatedly:
 .venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-512/balanced_25_validation_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-2000/balanced_25_validation_evaluation.json
 ```
 
-The 2,000-example run takes longer and saves to a separate directory. Run a
-final test evaluation after selecting the training setup. The balanced
-validation sample has equal class counts, so its accuracy answers a different
+The 2,000-example run took 441.7 seconds on MPS. On the same 150 balanced
+validation cases, its accuracy was 60.7% and macro-F1 was 0.598, compared
+with 44.7% and 0.410 for the 512-example adapter. `love` recall rose from
+3/25 to 11/25 and `surprise` from 3/25 to 10/25. Both models produced valid
+labels for every case. Eight cases overlap the 64 validation examples
+monitored during training; they were never used for weight updates. This
+balanced sample has equal class counts, so its accuracy answers a different
 question from accuracy under the original class distribution.
+
+The 2,000-example setup is the selected candidate for a final held-out test
+check. The 512-example balanced test file already exists; run the new adapter
+on those same 150 test cases and compare them:
+
+```bash
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-2000 --balanced-per-label 25 --device mps
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-512/balanced_25_test_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-2000/balanced_25_test_evaluation.json
+```
+
+For a fixed sample with the original test-set class mix, generate all 128
+answers for the new adapter. Compare with the saved 512-example test file only
+if it also contains the same 128 generated cases:
+
+```bash
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-2000 --test-samples 128 --generation-examples 128 --device mps
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-512/test_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-2000/test_evaluation.json
+```
+
+Use these test results to report performance, not to choose another training
+configuration on the same test examples.
 
 ## Prepare and run
 

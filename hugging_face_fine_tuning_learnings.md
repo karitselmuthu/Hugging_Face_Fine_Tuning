@@ -1554,6 +1554,48 @@ evaluation after choosing the training setup.
 
 ------------------------------------------------------------------------
 
+## 39. 6 October 2026 --- Increasing 360M emotion training to 2,000 examples
+
+SmolLM2-360M + LoRA trained for one epoch on 2,000 emotion examples, with the
+same task configuration, seed, and 64 monitored validation examples as the
+512-example run. MPS training took 441.7 seconds (about 7 minutes 22 seconds),
+with train loss 0.4659. The adapter is saved under
+`models/tasks/emotion_classification/smollm2-360m-lora-2000/`.
+
+Both 360M adapters were then compared on the same deterministic, balanced
+150-example **validation** slice (25 examples per label):
+
+| Training examples | Response loss | Exact accuracy | Macro-F1 | Invalid labels |
+| ---: | ---: | ---: | ---: | ---: |
+| 512 | 0.7988 | 67/150 (44.7%) | 0.410 | 0 |
+| 2,000 | 0.4920 | 91/150 (60.7%) | 0.598 | 0 |
+
+| Label | 512 correct / 25 | 2,000 correct / 25 |
+| --- | ---: | ---: |
+| sadness | 15 | 20 |
+| joy | 24 | 24 |
+| love | 3 | 11 |
+| anger | 12 | 12 |
+| fear | 10 | 14 |
+| surprise | 3 | 10 |
+
+The 2,000-example adapter gained 28 cases that the 512-example adapter missed
+and lost four cases it previously got right. Its largest recall gains were
+`love` (3 to 11 correct) and `surprise` (3 to 10 correct). This supports
+selecting the 2,000-example setup for a final test evaluation, while the
+remaining errors leave room for further improvement. Eight of the 150
+balanced cases overlap the 64 examples used for the training run's end-of-epoch
+validation loss; none were training examples. The balanced class mix is a
+diagnostic and does not represent the original class distribution.
+
+Next, evaluate the selected 2,000-example adapter once on the held-out test
+split. Compare it with the already saved 512-example balanced test result,
+then measure accuracy on a fixed, ordinary test sample to assess performance
+under the original label mix. Do not use those test results to choose another
+training configuration.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:
