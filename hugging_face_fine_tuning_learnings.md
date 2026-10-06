@@ -1490,20 +1490,28 @@ runtime was 109.0 seconds, compared with 67.3 seconds for SmolLM2-135M.
 Both runs were evaluated on the exact same 128 prompts and references. The
 saved tokenizers have identical files, and both scored 361 response tokens.
 
-| Trained base model | Test loss | Strict accuracy | Macro-F1 | Invalid outputs |
+| Model | Test loss | Strict accuracy | Macro-F1 | Invalid outputs |
 | --- | ---: | ---: | ---: | ---: |
-| SmolLM2-135M | 0.3958 | 85/128 (66.4%) | 0.382 | 0 |
-| SmolLM2-360M | 0.3823 | 93/128 (72.7%) | 0.539 | 1 |
+| Untuned SmolLM2-135M | 4.0100 | 0/128 | 0.000 | 128 |
+| SmolLM2-135M + LoRA | 0.3958 | 85/128 (66.4%) | 0.382 | 0 |
+| Untuned SmolLM2-360M | 2.6325 | 0/128 | 0.000 | 128 |
+| SmolLM2-360M + LoRA | 0.3823 | 93/128 (72.7%) | 0.539 | 1 |
 
 The 360M adapter was correct on 14 examples the 135M adapter missed; the
 135M adapter was correct on six examples the 360M adapter missed. The larger
 adapter identified eight of ten `fear` cases versus one of ten for 135M.
 It identified one of six `love` cases, but still identified none of the five
 `surprise` cases. The single invalid 360M output was `trustworthiness`.
-This 128-example slice is small for rare-class conclusions, and the 360M
-starting-model baseline has not yet been measured. The next comparison
-should use a larger or stratified held-out sample before changing model
-size again.
+Both untuned models failed the strict output-format check on every sampled
+case; they often continued the prompt or wrote explanatory text instead of
+returning one exact label. The 360M starting model had lower response loss
+than the 135M starting model on the same 361 reference tokens, but neither
+base model produced a valid classifier output under this prompt and decoding
+rule. All four evaluations used identical prompts and references.
+
+This 128-example slice is small for rare-class conclusions. The next
+comparison should use a larger or stratified held-out sample before changing
+model size again.
 
 ------------------------------------------------------------------------
 
