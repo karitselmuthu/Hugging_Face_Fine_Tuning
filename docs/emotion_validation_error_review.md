@@ -46,5 +46,8 @@ too far for the intended use. Use validation results to choose the setup;
 the previously inspected test cases should not guide the training choice.
 
 The sampling code passed a deterministic 2,000-example selection check and
-a two-step CPU training check. A complete balanced SmolLM2-360M MPS run has
-not yet been performed.
+a two-step CPU training check. The complete balanced SmolLM2-360M MPS run
+then finished in 434.3 seconds. On the fixed 150-example balanced validation
+slice, accuracy rose from 60.7% to 70.7% and macro-F1 from 0.598 to 0.707.
+`Love` and `surprise` each rose to 19/25 correct, while `joy` recall fell
+from 24/25 to 20/25. The ordinary validation comparison is the next check.

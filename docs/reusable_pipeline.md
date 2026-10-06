@@ -124,6 +124,13 @@ examples from all six labels:
 .venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-2000/balanced_25_validation_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-balanced-2000/balanced_25_validation_evaluation.json
 ```
 
+This run completed on MPS in 434.3 seconds. On the same 150 balanced
+validation cases, equal-count training improved accuracy from 60.7% to
+70.7% and macro-F1 from 0.598 to 0.707. `Love` and `surprise` recall
+each reached 19/25; `joy` recall fell from 24/25 to 20/25. Use the ordinary
+validation comparison below to judge this tradeoff under the original
+label mix.
+
 To check the original validation label mix, generate the same 128 validation
 answers for both models and compare them:
 
@@ -134,7 +141,7 @@ answers for both models and compare them:
 ```
 
 Review macro-F1, `love` and `surprise` recall, and ordinary-sample accuracy
-together. The full MPS training run remains to be completed.
+together. This ordinary validation comparison is still pending.
 
 ## Prepare and run
 

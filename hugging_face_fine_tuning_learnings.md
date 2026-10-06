@@ -1699,6 +1699,47 @@ confusion table and rationale are in the
 
 ------------------------------------------------------------------------
 
+## 43. 6 October 2026 --- Equal-count emotion training on MPS
+
+The full SmolLM2-360M + LoRA run completed with 2,000 unique training rows:
+334 each for `sadness` and `joy`, and 333 each for `love`, `anger`, `fear`,
+and `surprise`. The saved run summary reports 434.3 seconds of training on
+MPS and no examples skipped for length.
+
+Both 2,000-example adapters were evaluated on the same 150 balanced
+**validation** examples. The comparison verified identical prompts and
+references; neither model produced an invalid label.
+
+| Training subset | Response loss | Exact accuracy | Macro-F1 |
+| --- | ---: | ---: | ---: |
+| Original shuffled subset | 0.4920 | 91/150 (60.7%) | 0.598 |
+| Equal-count subset | 0.3330 | 106/150 (70.7%) | 0.707 |
+
+| Label | Original correct / 25 | Equal-count correct / 25 |
+| --- | ---: | ---: |
+| sadness | 20 | 18 |
+| joy | 24 | 20 |
+| love | 11 | 19 |
+| anger | 12 | 15 |
+| fear | 14 | 15 |
+| surprise | 10 | 19 |
+
+The equal-count adapter corrected 25 cases the original adapter missed and
+lost ten cases it previously got right. The intended rare-label gain is
+visible: `love` rose by eight correct cases and `surprise` by nine. The
+tradeoff is lower `joy` recall (24/25 to 20/25) and `sadness` recall
+(20/25 to 18/25). `Joy` F1 still rose from 0.632 to 0.755 because fewer
+other labels were incorrectly predicted as `joy`.
+
+Do not select a model from this balanced slice alone. The next check is a
+paired, ordinary 128-example validation sample for both 2,000-example
+adapters. Compare overall accuracy, macro-F1, and per-label recall under
+that original label mix before deciding whether equal-count training is
+preferable for this task. The commands are in the
+[pipeline guide](docs/reusable_pipeline.md#compare-equal-count-emotion-training).
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:
