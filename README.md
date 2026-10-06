@@ -64,7 +64,7 @@ Preparation and training refuse to overwrite nonempty output directories. If a d
 
 For concept-list inference, pass [the example JSON file](examples/concept_sentence_input.json) with `--input-json`. For all commands and the task-file schema, see [the reusable pipeline guide](docs/reusable_pipeline.md).
 
-The first full emotion-classification experiment used 512 training examples. On 128 held-out examples, it returned an exact valid label for every case and got 85 correct (66.4% accuracy; 0.382 macro-F1). It did not predict `love` or `surprise` in that sample. The result and its limits are recorded in the [learning journal](hugging_face_fine_tuning_learnings.md).
+The first full emotion-classification experiment used 512 training examples. On the same 128 held-out examples, SmolLM2-135M got 85 correct (66.4% accuracy; 0.382 macro-F1) and SmolLM2-360M got 93 correct (72.7%; 0.539 macro-F1). The 360M run still made one invalid prediction and missed every `surprise` case. Results and limits are recorded in the [learning journal](hugging_face_fine_tuning_learnings.md).
 
 ## Add another dataset
 

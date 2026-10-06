@@ -1482,6 +1482,31 @@ a larger or class-balanced training subset using the same held-out examples.
 
 ------------------------------------------------------------------------
 
+## 37. 6 October 2026 --- Comparing SmolLM2-135M and SmolLM2-360M
+
+The same 512 prepared emotion training examples and 64 validation examples
+were used to train a LoRA adapter on SmolLM2-360M. The recorded MPS training
+runtime was 109.0 seconds, compared with 67.3 seconds for SmolLM2-135M.
+Both runs were evaluated on the exact same 128 prompts and references. The
+saved tokenizers have identical files, and both scored 361 response tokens.
+
+| Trained base model | Test loss | Strict accuracy | Macro-F1 | Invalid outputs |
+| --- | ---: | ---: | ---: | ---: |
+| SmolLM2-135M | 0.3958 | 85/128 (66.4%) | 0.382 | 0 |
+| SmolLM2-360M | 0.3823 | 93/128 (72.7%) | 0.539 | 1 |
+
+The 360M adapter was correct on 14 examples the 135M adapter missed; the
+135M adapter was correct on six examples the 360M adapter missed. The larger
+adapter identified eight of ten `fear` cases versus one of ten for 135M.
+It identified one of six `love` cases, but still identified none of the five
+`surprise` cases. The single invalid 360M output was `trustworthiness`.
+This 128-example slice is small for rare-class conclusions, and the 360M
+starting-model baseline has not yet been measured. The next comparison
+should use a larger or stratified held-out sample before changing model
+size again.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:
