@@ -1670,6 +1670,35 @@ adjusting to these inspected test cases would overstate generalization.
 
 ------------------------------------------------------------------------
 
+## 42. 6 October 2026 --- Validation error review and balanced training option
+
+The saved 2,000-example SmolLM2-360M validation generations show a repeated
+confusion: of 25 `love` references, 11 were correct and 10 were predicted as
+`joy`; of 25 `surprise` references, 10 were correct and 10 were predicted as
+`joy`. The remaining `love` errors were three `sadness` and one `anger`;
+the remaining `surprise` errors were four `fear` and one `love`. Some texts
+are ambiguous, so these counts describe agreement with dataset labels.
+
+The original 2,000-example shuffled training subset had 174 `love` and 80
+`surprise` rows, compared with 591 `sadness` and 639 `joy` rows. The full
+training split has enough unique examples to draw about 333 from each of the
+six labels. I added `--balanced-train` to the reusable trainer for this
+controlled experiment. It leaves the 64-example validation selection alone,
+uses no duplicate training rows, and records label counts in the run summary.
+
+A deterministic selection check produced 334 `sadness`, 334 `joy`, and 333
+examples for each other label. A two-step CPU LoRA training check completed
+and saved an adapter. The complete 2,000-example balanced run has not yet
+been trained; this local tool environment reports MPS unavailable. The exact
+MPS training and paired validation commands are in the
+[pipeline guide](docs/reusable_pipeline.md#compare-equal-count-emotion-training).
+Compare rare-label recall and macro-F1 on the balanced validation slice, then
+check ordinary validation accuracy before selecting a setup. The aggregate
+confusion table and rationale are in the
+[validation error review](docs/emotion_validation_error_review.md).
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:

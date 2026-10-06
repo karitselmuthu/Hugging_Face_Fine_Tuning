@@ -109,6 +109,33 @@ These commands reproduce the evaluation and comparison:
 Use these test results to report performance, not to choose another training
 configuration on the same test examples.
 
+## Compare equal-count emotion training
+
+The [validation error review](emotion_validation_error_review.md) shows that
+the 2,000-example adapter often maps `love` and `surprise` to `joy`. The
+original 2,000-example subset had 174 `love` and 80 `surprise` rows. The
+following run keeps the model, adapter settings, sample count, seed, and
+validation selection fixed while drawing nearly equal numbers of training
+examples from all six labels:
+
+```bash
+.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --starting-model HuggingFaceTB/SmolLM2-360M --train-samples 2000 --validation-samples 64 --balanced-train --output-dir models/tasks/emotion_classification/smollm2-360m-lora-balanced-2000
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-balanced-2000 --split validation --balanced-per-label 25 --device mps
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-2000/balanced_25_validation_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-balanced-2000/balanced_25_validation_evaluation.json
+```
+
+To check the original validation label mix, generate the same 128 validation
+answers for both models and compare them:
+
+```bash
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-2000 --split validation --test-samples 128 --generation-examples 128 --device mps
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-balanced-2000 --split validation --test-samples 128 --generation-examples 128 --device mps
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-2000/validation_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-balanced-2000/validation_evaluation.json
+```
+
+Review macro-F1, `love` and `surprise` recall, and ordinary-sample accuracy
+together. The full MPS training run remains to be completed.
+
 ## Prepare and run
 
 From the project root, with `requirements.txt` installed in `.venv`:

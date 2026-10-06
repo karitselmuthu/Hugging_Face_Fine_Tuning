@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import random
+from collections import Counter
 from pathlib import Path
 
 from datasets import Dataset
@@ -11,25 +13,47 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingA
 from task_core import ROOT, ResponseOnlyCollator, encode_example, load_task, prepared_dir, read_jsonl
 
 
-def select_encoded(path, tokenizer, max_length, limit, seed):
+def select_encoded(path, tokenizer, max_length, limit, seed, balanced_labels=None):
     rows = list(read_jsonl(path))
     if not rows:
         raise ValueError(f"No examples in {path}")
-    import random
-    random.Random(seed).shuffle(rows)
     selected = []
     skipped = 0
-    for row in rows:
-        encoded = encode_example(row, tokenizer, max_length)
-        if encoded is None:
-            skipped += 1
-            continue
-        selected.append(encoded)
-        if len(selected) == limit:
-            break
+    label_counts = Counter()
+    if balanced_labels is None:
+        random.Random(seed).shuffle(rows)
+        for row in rows:
+            encoded = encode_example(row, tokenizer, max_length)
+            if encoded is None:
+                skipped += 1
+                continue
+            selected.append(encoded)
+            if len(selected) == limit:
+                break
+    else:
+        rng = random.Random(seed)
+        per_label, extra = divmod(limit, len(balanced_labels))
+        for index, label in enumerate(balanced_labels):
+            required = per_label + (index < extra)
+            candidates = [row for row in rows if row["response"].strip().lower() == label]
+            rng.shuffle(candidates)
+            if len(candidates) < required:
+                raise ValueError(f"Need {required} training examples for {label}; found {len(candidates)}")
+            for row in candidates:
+                if label_counts[label] == required:
+                    break
+                encoded = encode_example(row, tokenizer, max_length)
+                if encoded is None:
+                    skipped += 1
+                    continue
+                selected.append(encoded)
+                label_counts[label] += 1
+            if label_counts[label] < required:
+                raise ValueError(f"Only {label_counts[label]} examples for {label} fit within {max_length} tokens; need {required}")
+        rng.shuffle(selected)
     if not selected:
         raise ValueError(f"No examples fit in {max_length} tokens; increase max_length")
-    return Dataset.from_list(selected), skipped
+    return Dataset.from_list(selected), skipped, dict(label_counts)
 
 
 def main():
@@ -43,6 +67,8 @@ def main():
     parser.add_argument("--validation-samples", type=int)
     parser.add_argument("--max-steps", type=int, default=-1, help="Positive value for a short smoke run")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--balanced-train", action="store_true",
+                        help="For label tasks, draw nearly equal training counts per label without replacement")
     args = parser.parse_args()
     task = load_task(args.task)
     settings = task["training"]
@@ -51,8 +77,18 @@ def main():
     validation_limit = args.validation_samples if args.validation_samples is not None else settings["validation_samples"]
     if min(train_limit, validation_limit) < 1 or args.max_steps == 0 or args.max_steps < -1:
         parser.error("sample limits must be positive and max-steps must be -1 or positive")
+    labels = None
+    if args.balanced_train:
+        evaluation = task.get("evaluation", {})
+        labels = evaluation.get("labels")
+        if evaluation.get("metric") != "label_accuracy" or not labels:
+            parser.error("--balanced-train requires a label_accuracy task with labels")
+        if train_limit < len(labels):
+            parser.error("--balanced-train requires at least one training example per label")
     data_dir = args.data_dir or prepared_dir(task)
     run_name = f"{method}-{train_limit}"
+    if args.balanced_train:
+        run_name += "-balanced"
     if args.max_steps != -1:
         run_name += f"-steps-{args.max_steps}"
     output_dir = args.output_dir or ROOT / "models" / "tasks" / task["name"] / run_name
@@ -68,8 +104,10 @@ def main():
     starting_model = args.starting_model or task["base_model"]
     tokenizer = AutoTokenizer.from_pretrained(starting_model)
     tokenizer.pad_token = tokenizer.eos_token
-    train, train_skipped = select_encoded(data_dir / "train.jsonl", tokenizer, task["max_length"], train_limit, args.seed)
-    validation, validation_skipped = select_encoded(data_dir / "validation.jsonl", tokenizer, task["max_length"], validation_limit, args.seed)
+    train, train_skipped, train_label_counts = select_encoded(
+        data_dir / "train.jsonl", tokenizer, task["max_length"], train_limit, args.seed, labels)
+    validation, validation_skipped, _ = select_encoded(
+        data_dir / "validation.jsonl", tokenizer, task["max_length"], validation_limit, args.seed)
     model = AutoModelForCausalLM.from_pretrained(starting_model, dtype="auto")
     model.config.use_cache = False
     model.config.pad_token_id = tokenizer.pad_token_id
@@ -121,6 +159,8 @@ def main():
         "train_examples": len(train), "validation_examples": len(validation),
         "train_skipped_for_length": train_skipped,
         "validation_skipped_for_length": validation_skipped,
+        "train_sampling": {"method": "balanced_per_label" if args.balanced_train else "random",
+                           "label_counts": train_label_counts} if args.balanced_train else {"method": "random"},
         "max_length": task["max_length"], "seed": args.seed,
         "train_metrics": train_metrics, "validation_metrics": validation_metrics,
         "final_dir": str(final_dir),
