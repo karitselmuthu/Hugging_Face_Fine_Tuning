@@ -1,4 +1,4 @@
-"""Score an untouched task test split and save representative generations."""
+"""Score a task validation or test split and save representative generations."""
 
 import argparse
 import json
@@ -31,7 +31,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path)
-    parser.add_argument("--test-samples", type=int, help="Number of test rows for random sampling (default: 128)")
+    parser.add_argument("--split", choices=["validation", "test"], default="test")
+    parser.add_argument("--test-samples", type=int, help="Number of rows for random sampling (default: 128)")
     parser.add_argument("--generation-examples", type=int)
     parser.add_argument("--balanced-per-label", type=int,
                         help="For label tasks, score and generate this many test examples per label")
@@ -75,7 +76,7 @@ def main():
     if summary["task"] != task["name"]:
         parser.error("Saved run and task config do not match")
     device = choose_device(args.device)
-    test_rows = list(read_jsonl(data_dir / "test.jsonl"))
+    test_rows = list(read_jsonl(data_dir / f"{args.split}.jsonl"))
     if balanced:
         try:
             test_rows = select_balanced_rows(test_rows, evaluation["labels"], args.balanced_per_label, summary["seed"])
@@ -119,23 +120,24 @@ def main():
         raise ValueError("Balanced evaluation lost examples to the context limit; reduce --balanced-per-label or raise max_length")
     result = {
         "task": task["name"], "run_dir": str(args.run_dir), "device": device,
+        "split": args.split,
         "model": "starting_model" if args.base_only else "trained_run",
         "sampling": {"method": "balanced_per_label", "per_label": args.balanced_per_label, "seed": summary["seed"]}
                     if balanced else {"method": "random", "seed": summary["seed"]},
-        "test_examples": scored, "skipped_for_length": skipped,
+        f"{args.split}_examples": scored, "skipped_for_length": skipped,
         "response_tokens": total_tokens, "response_loss": total_loss / total_tokens,
         "response_perplexity": math.exp(total_loss / total_tokens),
         "generation_metric": score_generations(task, examples),
         "examples": examples,
     }
     if balanced:
-        default_name = f"balanced_{args.balanced_per_label}_" + ("base_test_evaluation.json" if args.base_only else "test_evaluation.json")
+        default_name = f"balanced_{args.balanced_per_label}_" + ("base_" if args.base_only else "") + f"{args.split}_evaluation.json"
     else:
-        default_name = "base_test_evaluation.json" if args.base_only else "test_evaluation.json"
+        default_name = ("base_" if args.base_only else "") + f"{args.split}_evaluation.json"
     output_path = args.output or args.run_dir / default_name
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
-    print(f"Test loss: {result['response_loss']:.4f}; perplexity: {result['response_perplexity']:.2f}; examples: {scored}")
+    print(f"{args.split.title()} loss: {result['response_loss']:.4f}; perplexity: {result['response_perplexity']:.2f}; examples: {scored}")
     print(f"Saved {output_path}")
 
 

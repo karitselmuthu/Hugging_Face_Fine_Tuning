@@ -1515,6 +1515,45 @@ model size again.
 
 ------------------------------------------------------------------------
 
+## 38. 6 October 2026 --- Balanced emotion evaluation
+
+The two saved emotion adapters were evaluated on the same deterministic
+150-example test slice, with 25 examples for each of the six labels. Every
+selected row fit the context limit, and neither adapter produced an invalid
+label. This is a deliberately balanced diagnostic, not an estimate of
+accuracy under the original test-set class distribution.
+
+| Trained model | Response loss | Exact accuracy | Macro-F1 |
+| --- | ---: | ---: | ---: |
+| SmolLM2-135M + LoRA | 0.7919 | 60/150 (40.0%) | 0.306 |
+| SmolLM2-360M + LoRA | 0.6872 | 78/150 (52.0%) | 0.469 |
+
+| Label | 135M correct / 25 | 360M correct / 25 |
+| --- | ---: | ---: |
+| sadness | 19 | 19 |
+| joy | 24 | 23 |
+| love | 1 | 5 |
+| anger | 13 | 20 |
+| fear | 3 | 9 |
+| surprise | 0 | 2 |
+
+The 360M adapter was correct on 24 cases the 135M adapter missed; the 135M
+adapter was correct on six cases the 360M adapter missed. The larger model
+improved coverage of the weaker classes but still missed most `love`, `fear`,
+and `surprise` examples. The lower balanced accuracies relative to the
+earlier random 128-example evaluation reflect this equal class mix; they
+do not indicate a regression on the original test distribution.
+
+Next, compare a larger training subset on a fixed, balanced **validation**
+slice. The test set has already been inspected, so repeated training decisions
+should use validation examples. Increasing to 2,000 training examples is a
+controlled first step; class-balanced training can be a separate experiment
+if rare-label recall remains poor. Keep the 512-example adapters and the
+validation selection unchanged for the comparison, then run a final test
+evaluation after choosing the training setup.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:

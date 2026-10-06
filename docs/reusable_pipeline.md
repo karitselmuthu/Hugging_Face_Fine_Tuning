@@ -61,6 +61,24 @@ The prepared emotion test split has 66 `surprise` examples, so 25 per label
 fits. These commands load each model and generate 150 answers, which takes
 longer than the original 128-example check; they do not retrain either model.
 
+If rare-label recall remains low, change only the training subset size first.
+The following run uses the same 360M base, task settings, seed, validation
+sample count, and prepared data as the 512-example run. Use the validation
+split for this next model-selection decision; the test slice above has already
+been inspected repeatedly:
+
+```bash
+.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --starting-model HuggingFaceTB/SmolLM2-360M --train-samples 2000 --validation-samples 64 --output-dir models/tasks/emotion_classification/smollm2-360m-lora-2000
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-512 --split validation --balanced-per-label 25 --device mps
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-2000 --split validation --balanced-per-label 25 --device mps
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-512/balanced_25_validation_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-2000/balanced_25_validation_evaluation.json
+```
+
+The 2,000-example run takes longer and saves to a separate directory. Run a
+final test evaluation after selecting the training setup. The balanced
+validation sample has equal class counts, so its accuracy answers a different
+question from accuracy under the original class distribution.
+
 ## Prepare and run
 
 From the project root, with `requirements.txt` installed in `.venv`:

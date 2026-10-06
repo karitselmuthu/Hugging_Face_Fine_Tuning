@@ -21,6 +21,8 @@ def main():
     first, second = load(args.first), load(args.second)
     if first["task"] != second["task"]:
         parser.error("Evaluations use different tasks")
+    if first.get("split", "test") != second.get("split", "test"):
+        parser.error("Evaluations use different data splits")
     first_cases = [(case["prompt"], case["reference"]) for case in first["examples"]]
     second_cases = [(case["prompt"], case["reference"]) for case in second["examples"]]
     if first_cases != second_cases:
@@ -29,7 +31,7 @@ def main():
     if labels != list(second["generation_metric"]["per_label"]):
         parser.error("Evaluations use different label sets")
 
-    print(f"Task: {first['task']}; same held-out cases: {len(first_cases)}")
+    print(f"Task: {first['task']}; split: {first.get('split', 'test')}; same cases: {len(first_cases)}")
     for result in (first, second):
         metric = result["generation_metric"]
         print(f"{result['run_dir']}: accuracy={metric['accuracy']:.3f}, "
