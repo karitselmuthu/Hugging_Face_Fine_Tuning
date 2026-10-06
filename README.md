@@ -1,31 +1,34 @@
-# Reusable SmolLM2 fine-tuning pipeline
+# Reusable text fine-tuning toolkit
 
-Fine-tune `HuggingFaceTB/SmolLM2-135M` on a text task by changing a JSON task file. The shared workflow prepares data, trains a response-only model or LoRA adapter, evaluates it on a separate test split, and runs inference. The original horoscope experiments remain available as learning examples.
+Prepare, fine-tune, evaluate, and run inference for text tasks with Hugging Face causal language models. Each task JSON file defines the dataset, prompt, starting model, training settings, and evaluation. The included tasks default to `HuggingFaceTB/SmolLM2-135M`; experiments also use SmolLM2-360M. The original horoscope scripts remain available as learning examples.
 
 ## Project layout
 
 ```text
+.github/workflows/        Offline checks on pushes and pull requests
+tasks/                   Dataset and experiment configuration (four examples)
+src/                     Reusable command-line pipeline
+  prepare_task.py         Prepare prompt/response train, validation, and test files
+  train_task.py           Train a full model or LoRA adapter
+  evaluate_task.py        Score validation or test examples
+  infer_task.py           Generate from a saved run
+  audit_task_data.py      Check dataset integrity and split overlap
+  compare_label_evaluations.py  Compare classification runs on the same cases
+  task_core.py, task_metrics.py, data_integrity.py  Shared helpers
+  horoscope_experiments/ Earlier step-by-step horoscope and QLoRA scripts
+tests/                   Offline checks using small local fixtures
+docs/                    Pipeline guide, safeguards, and experiment notes
+hugging_face_fine_tuning_learnings.md  Step-by-step learning journal
 configs/                 MLX QLoRA experiment settings
 examples/                Small inference inputs
-tasks/                   Dataset, prompt, training, and evaluation settings
-src/                     Reusable task pipeline
-  prepare_task.py         Build prompt/response train, validation, and test files
-  train_task.py           Train a full model or LoRA adapter
-  evaluate_task.py        Score validation or test examples and save generations
-  infer_task.py           Generate from a saved run
-  compare_label_evaluations.py  Compare classification runs on matching cases
-  audit_task_data.py      Check prepared file integrity and split overlap
-  data_integrity.py       File fingerprints and exact-prompt overlap checks
-  task_core.py            Shared task and model helpers
-  task_metrics.py         Task-specific generation checks
-  horoscope_experiments/ Earlier step-by-step horoscope and QLoRA scripts
-docs/                    Workflow and experiment notes
+requirements*.txt        Main and optional MLX/CUDA dependencies
+LICENSE                  MIT license for project code
 data/                    Downloaded and prepared datasets (local only)
 models/                  Checkpoints and adapters (local only)
 results/                 Generated evaluations (local only)
 ```
 
-The scripts in [src/horoscope_experiments](src/horoscope_experiments/README.md) preserve the step-by-step horoscope and QLoRA experiments. Run commands from the project root; see [the experiment guide](docs/horoscope_experiments.md) and [learning journal](hugging_face_fine_tuning_learnings.md).
+Use the four `*_task.py` commands in `src/` for new scenarios. The scripts in [src/horoscope_experiments](src/horoscope_experiments/README.md) preserve the earlier, horoscope-specific sequence. Run commands from the project root. The [reusable pipeline guide](docs/reusable_pipeline.md), [internal toolkit safeguards](docs/internal_toolkit.md), and [learning journal](hugging_face_fine_tuning_learnings.md) give the full workflow and history.
 
 ## Set up
 
@@ -88,7 +91,17 @@ Preparation and training refuse to overwrite nonempty output directories. If a d
 
 For concept-list inference, pass [the example JSON file](examples/concept_sentence_input.json) with `--input-json`. For all commands and the task-file schema, see [the reusable pipeline guide](docs/reusable_pipeline.md).
 
-The first full emotion-classification experiment used 512 training examples. On the same 128 held-out examples, SmolLM2-135M got 85 correct (66.4% accuracy; 0.382 macro-F1) and SmolLM2-360M got 93 correct (72.7%; 0.539 macro-F1). The 360M run still made one invalid prediction and missed every `surprise` case. Both untuned base models scored 0% under the strict one-label output rule because their generations contained extra text. A second, balanced 150-example test comparison gave the trained 135M model 40.0% accuracy and 0.306 macro-F1, versus 52.0% and 0.469 for 360M; the latter recognized only 2 of 25 `surprise` cases. Increasing the 360M adapter's training subset from 512 to 2,000 examples raised balanced validation accuracy from 44.7% to 60.7% and macro-F1 from 0.410 to 0.598 on the same 150 cases. On the matching balanced test slice, accuracy rose from 52.0% to 64.0% and macro-F1 from 0.469 to 0.624. On the matching ordinary 128-case test sample, accuracy rose from 72.7% to 78.1% and macro-F1 from 0.539 to 0.568; both adapters missed all five `surprise` cases in that sample. Results and limits are recorded in the [learning journal](hugging_face_fine_tuning_learnings.md). The [balanced evaluation guide](docs/reusable_pipeline.md#balanced-emotion-evaluation) shows how to check rare labels on matching cases. The [validation error review](docs/emotion_validation_error_review.md) motivated an equal-count 2,000-example run through `train_task.py --balanced-train`; on the same balanced validation slice, accuracy rose from 60.7% to 70.7% and macro-F1 from 0.598 to 0.707. On the ordinary 128-example validation sample, the original adapter led 73.4% to 70.3% in accuracy and 0.670 to 0.612 in macro-F1, showing a tradeoff between common-label accuracy and rare-label recall.
+## Experiment snapshot
+
+The emotion-classification adapters were compared on the same 128 test examples:
+
+| Model | Training examples | Exact accuracy | Macro-F1 |
+| --- | ---: | ---: | ---: |
+| SmolLM2-135M + LoRA | 512 | 66.4% | 0.382 |
+| SmolLM2-360M + LoRA | 512 | 72.7% | 0.539 |
+| SmolLM2-360M + LoRA | 2,000 | 78.1% | 0.568 |
+
+Equal-count training improved the 360M model on a balanced 150-example validation slice (60.7% to 70.7% accuracy), while the original shuffled training subset performed better on an ordinary 128-example validation slice (73.4% versus 70.3%). The [learning journal](hugging_face_fine_tuning_learnings.md) records the full comparisons and limits; the [validation error review](docs/emotion_validation_error_review.md) explains the rare-label tradeoff. Each other task still needs its own quality evaluation.
 
 ## Add another dataset
 
