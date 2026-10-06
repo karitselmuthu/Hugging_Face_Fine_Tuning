@@ -37,6 +37,30 @@ configured sample count. Response-only loss and perplexity are also reported
 for each task. The public CommonGen validation split supplies labelled test
 examples because its official test targets are unavailable to this workflow.
 
+## Balanced emotion evaluation
+
+The standard evaluation shuffles the test set and scores the first 128 fitting
+examples. To inspect rare labels, `--balanced-per-label 25` deterministically
+selects 25 examples for each of the six emotion labels (150 total) and
+generates an answer for every selected example. It writes a separate file,
+preserving the earlier random-sample evaluation. Run this from the project
+root after training both adapters:
+
+```bash
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/lora-512 --balanced-per-label 25 --device mps
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-512 --balanced-per-label 25 --device mps
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/lora-512/balanced_25_test_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-512/balanced_25_test_evaluation.json
+```
+
+The comparison command verifies that both files contain identical prompts
+and references, then prints strict accuracy, macro-F1, invalid outputs, and
+per-label recall and F1. This sample deliberately changes the class mix, so
+its overall accuracy is not an estimate of accuracy on the original test-set
+distribution. Use the ordinary evaluation or the full test set for that.
+The prepared emotion test split has 66 `surprise` examples, so 25 per label
+fits. These commands load each model and generate 150 answers, which takes
+longer than the original 128-example check; they do not retrain either model.
+
 ## Prepare and run
 
 From the project root, with `requirements.txt` installed in `.venv`:
