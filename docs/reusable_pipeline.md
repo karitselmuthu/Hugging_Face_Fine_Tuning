@@ -83,14 +83,17 @@ monitored during training; they were never used for weight updates. This
 balanced sample has equal class counts, so its accuracy answers a different
 question from accuracy under the original class distribution.
 
-The 2,000-example setup is the selected candidate for a final held-out test
-check. The 512-example balanced test file already exists; run the new adapter
-on those same 150 test cases and compare them:
+The 2,000-example setup was selected for a balanced test check. Both test
+files now exist; these commands reproduce the evaluation and comparison:
 
 ```bash
 .venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smollm2-360m-lora-2000 --balanced-per-label 25 --device mps
 .venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smollm2-360m-lora-512/balanced_25_test_evaluation.json models/tasks/emotion_classification/smollm2-360m-lora-2000/balanced_25_test_evaluation.json
 ```
+
+This balanced test comparison is complete: accuracy rose from 52.0% to
+64.0% and macro-F1 from 0.469 to 0.624. `Surprise` recall rose from 2/25
+to 9/25; 16 of those 25 cases are still missed.
 
 For a fixed sample with the original test-set class mix, generate all 128
 answers for the new adapter. Compare with the saved 512-example test file only

@@ -1596,6 +1596,43 @@ training configuration.
 
 ------------------------------------------------------------------------
 
+## 40. 6 October 2026 --- Balanced test of the 2,000-example emotion adapter
+
+The selected SmolLM2-360M + LoRA adapter trained on 2,000 examples was
+evaluated on the same 150 balanced **test** examples as the earlier
+512-example adapter. The comparison script verified identical prompts and
+references, with 25 examples for each label.
+
+| Training examples | Response loss | Exact accuracy | Macro-F1 | Invalid labels |
+| ---: | ---: | ---: | ---: | ---: |
+| 512 | 0.6872 | 78/150 (52.0%) | 0.469 | 0 |
+| 2,000 | 0.4734 | 96/150 (64.0%) | 0.624 | 0 |
+
+| Label | 512 correct / 25 | 2,000 correct / 25 |
+| --- | ---: | ---: |
+| sadness | 19 | 22 |
+| joy | 23 | 23 |
+| love | 5 | 9 |
+| anger | 20 | 19 |
+| fear | 9 | 14 |
+| surprise | 2 | 9 |
+
+The 2,000-example adapter corrected 20 cases missed by the 512-example
+adapter and lost two cases it previously got right. `Surprise` recall rose
+from 2/25 to 9/25, though 16 of 25 `surprise` examples were still missed.
+The test result supports the validation-based choice of the 2,000-example
+setup. Because this slice has equal class counts, its 64.0% accuracy is a
+balanced diagnostic, not accuracy under the original test distribution.
+The test set had already been inspected in earlier experiments, so avoid
+using this result to choose further training settings.
+
+Next, generate answers for the same ordinary 128-example test sample used
+by the 512-example adapter. This measures strict-label accuracy under the
+test sample's original class mix, while the saved balanced result remains
+the rare-label diagnostic.
+
+------------------------------------------------------------------------
+
 ## Summary
 
 The main application-level progression has been:
