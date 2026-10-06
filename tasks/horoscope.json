@@ -1,0 +1,31 @@
+{
+  "name": "horoscope",
+  "source": {
+    "dataset": "karthiksagarn/astro_horoscope",
+    "train_split": "train",
+    "validation_split": null,
+    "test_split": null,
+    "heldout_fraction": 0.1
+  },
+  "prompt_template": "### Instruction:\nGenerate a horoscope using the following information.\n\n### Sign:\n{sign}\n\n### Category:\n{category}\n\n### Date:\n{date}\n\n### Horoscope:\n",
+  "response_field": "horoscope",
+  "field_transforms": {
+    "sign": "title",
+    "category": "title"
+  },
+  "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "max_length": 256,
+  "training": {
+    "method": "lora",
+    "train_samples": 512,
+    "validation_samples": 64,
+    "learning_rate": 0.0002,
+    "epochs": 1,
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "lora_rank": 8,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "lora_targets": ["q_proj", "v_proj"]
+  }
+}

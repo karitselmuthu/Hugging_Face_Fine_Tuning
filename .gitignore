@@ -1,0 +1,24 @@
+# Local environments and Python caches
+.venv/
+.venv-mlx/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and OS files
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
+
+# Downloaded datasets, checkpoints, and generated evaluations
+/data/*
+!/data/README.md
+/models/*
+!/models/README.md
+/results/*
+!/results/README.md

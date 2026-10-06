@@ -1,0 +1,33 @@
+{
+  "name": "conversation_summary",
+  "source": {
+    "dataset": "knkarthick/samsum",
+    "train_split": "train",
+    "validation_split": "validation",
+    "test_split": "test"
+  },
+  "prompt_template": "### Instruction:\nSummarize the following conversation in one or two sentences.\n\n### Conversation:\n{dialogue}\n\n### Summary:\n",
+  "response_field": "summary",
+  "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "max_length": 512,
+  "evaluation": {
+    "metric": "rouge_l_f1",
+    "generation_examples": 5,
+    "max_new_tokens": 80
+  },
+  "training": {
+    "method": "lora",
+    "train_samples": 512,
+    "validation_samples": 64,
+    "learning_rate": 0.0002,
+    "epochs": 1,
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "gradient_checkpointing": true,
+    "torch_empty_cache_steps": 10,
+    "lora_rank": 8,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "lora_targets": ["q_proj", "v_proj"]
+  }
+}
