@@ -68,4 +68,8 @@ For concept-list inference, pass [the example JSON file](examples/concept_senten
 
 Copy a task file and change its `name`, `source`, `prompt_template`, `response_field`, and training settings. Each `{placeholder}` in the prompt must match a source column. `response_map` converts numeric labels to text; `field_transforms` handles simple string and list formatting. Prepare the data, inspect its splits, then train and evaluate. Each task writes to separate directories under `data/tasks/` and `models/tasks/`.
 
-Datasets, checkpoints, virtual environments, and generated evaluations are intentionally excluded from Git. They are recreated locally. Check each dataset and base-model license before redistributing data, weights, or derivative artifacts.
+Datasets, checkpoints, virtual environments, and generated evaluations are intentionally excluded from Git. They are recreated locally.
+
+## License
+
+The project code is released under the [MIT License](LICENSE). Dataset and base-model licenses are separate; check their terms before redistributing data, weights, or derivative artifacts.
