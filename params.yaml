@@ -1,0 +1,8 @@
+pipeline:
+  task: tasks/emotion_classification.json
+  data_dir: data/tasks/emotion_classification_dvc
+  run_dir: models/tasks/emotion_classification/dvc-lora-512
+  audit_report: results/pipeline/emotion_audit.json
+  evaluation_report: results/pipeline/emotion_test.json
+  base_report: results/pipeline/emotion_base_test.json
+  comparison_report: results/pipeline/emotion_base_vs_adapter.txt

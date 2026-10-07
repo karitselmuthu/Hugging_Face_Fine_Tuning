@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from data_integrity import prompt_overlap, snapshot_prepared_data, verify_prepared_data  # noqa: E402
+from run_lineage import load_run_manifest, verify_run_data, write_run_manifest  # noqa: E402
 from task_core import load_task, preparation_spec  # noqa: E402
 
 
@@ -84,6 +85,31 @@ class PreparationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "differ from the training run"):
             verify_prepared_data(self.output_dir, expected)
 
+    def test_run_manifest_binds_saved_config_and_prepared_files(self):
+        self.assertEqual(self.prepare().returncode, 0)
+        run_dir = self.directory / "run"
+        run_dir.mkdir()
+        (run_dir / "final").mkdir()
+        (run_dir / "final" / "adapter_model.safetensors").write_bytes(b"test weights")
+        (run_dir / "run_summary.json").write_text(json.dumps({"task": "emotion_classification"}))
+        run_config = run_dir / "task_config.json"
+        run_config.write_bytes(self.task_path.read_bytes())
+        summary = {"method": "lora", "train_examples": 12, "validation_examples": 6,
+                   "train_sampling": {"method": "random"}, "max_steps": 2, "seed": 42,
+                   "starting_model": "example/model", "starting_model_revision": None,
+                   "prepared_artifacts": verify_prepared_data(self.output_dir)}
+        write_run_manifest(run_dir, load_task(self.task_path), summary, self.output_dir, "abc123")
+        manifest = load_run_manifest(run_dir)
+        self.assertEqual(manifest["starting_model"]["resolved_revision"], "abc123")
+        verify_run_data(manifest, self.output_dir, verify_prepared_data(self.output_dir))
+        (run_dir / "final" / "adapter_model.safetensors").write_bytes(b"changed weights")
+        with self.assertRaisesRegex(ValueError, "Saved model artifacts differ"):
+            load_run_manifest(run_dir)
+        (run_dir / "final" / "adapter_model.safetensors").write_bytes(b"test weights")
+        run_config.write_text(run_config.read_text() + "\n")
+        with self.assertRaisesRegex(ValueError, "differs from its run manifest"):
+            load_run_manifest(run_dir)
+
     def test_failed_preparation_leaves_no_partial_output(self):
         rows = [{"text": f"example {index}", "label": index % 6} for index in range(30)]
         rows[7]["text"] = ""
@@ -102,6 +128,18 @@ class PreparationTests(unittest.TestCase):
         self.assertIn("Cross-split prompt overlap", result.stderr)
         self.assertFalse(self.output_dir.exists())
         self.assertEqual(list(self.directory.glob(".prepared.tmp-*")), [])
+
+    def test_audit_gate_writes_only_after_passing(self):
+        rows = [{"text": "the same input", "label": index % 6} for index in range(30)]
+        self.source_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        self.assertEqual(self.prepare().returncode, 0)
+        report = self.directory / "audit.json"
+        command = [sys.executable, str(ROOT / "src/audit_task_data.py"),
+                   "--data-dir", str(self.output_dir), "--fail-on-overlap",
+                   "--output", str(report)]
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(report.exists())
 
     def test_deduplication_preserves_heldout_rows_and_clears_overlap(self):
         rows = [{"text": "shared input" if index < 12 else f"unique {index}",

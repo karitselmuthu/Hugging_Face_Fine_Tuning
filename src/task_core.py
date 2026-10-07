@@ -9,6 +9,8 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from run_lineage import load_run_manifest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,6 +40,9 @@ def load_task(path):
     for key in ("prompt_template", "response_field", "base_model"):
         if not isinstance(task[key], str) or not task[key].strip():
             raise ValueError(f"{key} must be a nonempty string")
+    if task.get("base_model_revision") is not None and (not isinstance(task["base_model_revision"], str)
+                                                        or not task["base_model_revision"].strip()):
+        raise ValueError("base_model_revision must be a nonempty string")
     if type(task["max_length"]) is not int or task["max_length"] < 32:
         raise ValueError("max_length must be at least 32")
     fields = []
@@ -164,12 +169,14 @@ def choose_device(requested):
 def load_saved_run(run_dir, device="auto"):
     run_dir = Path(run_dir)
     summary = json.loads((run_dir / "run_summary.json").read_text(encoding="utf-8"))
+    manifest = load_run_manifest(run_dir)
     final_dir = run_dir / "final"
     tokenizer = AutoTokenizer.from_pretrained(final_dir, local_files_only=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     if summary["method"] == "lora":
-        base = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto")
+        revision = manifest["starting_model"]["resolved_revision"] if manifest else None
+        base = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto", revision=revision)
         model = PeftModel.from_pretrained(base, final_dir, local_files_only=True)
     else:
         model = AutoModelForCausalLM.from_pretrained(final_dir, local_files_only=True, dtype="auto")

@@ -10,7 +10,8 @@ from datasets import Dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
-from data_integrity import verify_prepared_data
+from data_integrity import prompt_overlap, verify_prepared_data
+from run_lineage import write_run_manifest
 from task_core import ROOT, ResponseOnlyCollator, encode_example, load_task, preparation_spec, prepared_dir, read_jsonl
 
 
@@ -70,6 +71,8 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--balanced-train", action="store_true",
                         help="For label tasks, draw nearly equal training counts per label without replacement")
+    parser.add_argument("--allow-overlap", action="store_true",
+                        help="Allow exact prompts shared across splits after showing audit counts")
     args = parser.parse_args()
     task = load_task(args.task)
     settings = task["training"]
@@ -102,15 +105,20 @@ def main():
     if preparation_spec(prepared) != preparation_spec(task):
         parser.error("Prepared data uses different source, fields, or prompt settings; rerun prepare_task.py")
     prepared_artifacts = verify_prepared_data(data_dir)
+    overlap = prompt_overlap(data_dir)
+    if any(overlap.values()) and not args.allow_overlap:
+        parser.error(f"Cross-split prompt overlap {overlap}; prepare clean data or pass --allow-overlap for historical experiments")
 
     starting_model = args.starting_model or task["base_model"]
-    tokenizer = AutoTokenizer.from_pretrained(starting_model)
+    revision = task.get("base_model_revision") if args.starting_model is None else None
+    tokenizer = AutoTokenizer.from_pretrained(starting_model, revision=revision)
     tokenizer.pad_token = tokenizer.eos_token
     train, train_skipped, train_label_counts = select_encoded(
         data_dir / "train.jsonl", tokenizer, task["max_length"], train_limit, args.seed, labels)
     validation, validation_skipped, _ = select_encoded(
         data_dir / "validation.jsonl", tokenizer, task["max_length"], validation_limit, args.seed)
-    model = AutoModelForCausalLM.from_pretrained(starting_model, dtype="auto")
+    model = AutoModelForCausalLM.from_pretrained(starting_model, dtype="auto", revision=revision)
+    model_commit = getattr(model.config, "_commit_hash", None) or revision
     model.config.use_cache = False
     model.config.pad_token_id = tokenizer.pad_token_id
     if method == "lora":
@@ -158,18 +166,21 @@ def main():
     tokenizer.save_pretrained(str(final_dir))
     summary = {
         "task": task["name"], "method": method, "starting_model": starting_model,
+        "starting_model_revision": revision,
         "train_examples": len(train), "validation_examples": len(validation),
         "train_skipped_for_length": train_skipped,
         "validation_skipped_for_length": validation_skipped,
         "train_sampling": {"method": "balanced_per_label" if args.balanced_train else "random",
                            "label_counts": train_label_counts} if args.balanced_train else {"method": "random"},
         "max_length": task["max_length"], "seed": args.seed,
+        "max_steps": args.max_steps,
         "prepared_artifacts": prepared_artifacts,
         "train_metrics": train_metrics, "validation_metrics": validation_metrics,
         "final_dir": str(final_dir),
     }
     (output_dir / "run_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     (output_dir / "task_config.json").write_text(args.task.read_text(encoding="utf-8"))
+    write_run_manifest(output_dir, task, summary, data_dir, model_commit)
     print(f"Saved {method} model to {final_dir}", flush=True)
 
 

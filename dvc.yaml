@@ -1,0 +1,80 @@
+# Optional single-task pipeline. Set paths in params.yaml before running DVC.
+stages:
+  prepare:
+    cmd: >-
+      .venv/bin/python src/prepare_task.py --task ${pipeline.task}
+      --output-dir ${pipeline.data_dir} --deduplicate-cross-split --fail-on-overlap
+    deps:
+      - ${pipeline.task}
+      - src/prepare_task.py
+      - src/data_integrity.py
+      - src/task_core.py
+      - requirements.txt
+    outs:
+      - ${pipeline.data_dir}
+  audit:
+    cmd: >-
+      .venv/bin/python src/audit_task_data.py --data-dir ${pipeline.data_dir}
+      --fail-on-overlap --output ${pipeline.audit_report}
+    deps:
+      - ${pipeline.data_dir}
+      - src/audit_task_data.py
+      - src/data_integrity.py
+    outs:
+      - ${pipeline.audit_report}
+  train:
+    cmd: >-
+      .venv/bin/python src/train_task.py --task ${pipeline.task}
+      --data-dir ${pipeline.data_dir} --output-dir ${pipeline.run_dir}
+    deps:
+      - ${pipeline.task}
+      - ${pipeline.data_dir}
+      - ${pipeline.audit_report}
+      - src/train_task.py
+      - src/task_core.py
+      - src/data_integrity.py
+      - src/run_lineage.py
+      - requirements.txt
+    outs:
+      - ${pipeline.run_dir}
+  evaluate:
+    cmd: >-
+      .venv/bin/python src/evaluate_task.py --run-dir ${pipeline.run_dir}
+      --output ${pipeline.evaluation_report}
+    deps:
+      - ${pipeline.run_dir}
+      - ${pipeline.data_dir}
+      - src/evaluate_task.py
+      - src/task_generation.py
+      - src/task_metrics.py
+      - src/task_core.py
+      - src/run_lineage.py
+      - requirements.txt
+    outs:
+      - ${pipeline.evaluation_report}
+  base_evaluate:
+    cmd: >-
+      .venv/bin/python src/evaluate_task.py --run-dir ${pipeline.run_dir}
+      --base-only --output ${pipeline.base_report}
+    deps:
+      - ${pipeline.run_dir}
+      - ${pipeline.data_dir}
+      - src/evaluate_task.py
+      - src/task_generation.py
+      - src/task_metrics.py
+      - src/task_core.py
+      - src/run_lineage.py
+      - requirements.txt
+    outs:
+      - ${pipeline.base_report}
+  compare:
+    cmd: >-
+      .venv/bin/python src/compare_label_evaluations.py
+      ${pipeline.base_report} ${pipeline.evaluation_report}
+      --output ${pipeline.comparison_report}
+    deps:
+      - ${pipeline.base_report}
+      - ${pipeline.evaluation_report}
+      - src/compare_label_evaluations.py
+    outs:
+      - ${pipeline.comparison_report}

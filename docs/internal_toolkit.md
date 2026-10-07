@@ -42,7 +42,12 @@ evaluation rows may differ. To pin a Hugging Face dataset version, set
 
 New training runs record hashes of the exact prepared files they used.
 Evaluation checks those hashes and the task's preparation settings before
-loading model weights. If the data changed, restore the original prepared
+loading model weights. Training now rejects exact cross-split prompt overlap;
+use `--allow-overlap` only to repeat historical experiments against the old
+prepared data. New runs also write `run_manifest.json` and
+`resolved_config.json` with model revision, saved artifact hashes, decoding
+defaults, package versions, and Git state. Inference verifies the saved
+run files before model loading. If the data changed, restore the original prepared
 directory or train a new run against the new data. Existing historical runs
 remain readable, but they lack this retroactive fingerprint guarantee.
 
@@ -57,6 +62,8 @@ both commands:
 These hashes catch accidental file changes; they are not signatures or an
 access-control system. Dataset licenses, private data handling, shared
 artifact storage, and model approval remain organization-specific decisions.
+See [ADR-001](adr/001-run-lineage-and-pipeline-orchestration.md) for the
+optional DVC graph and the limits of unpinned upstream revisions.
 
 ## Checks before a change
 

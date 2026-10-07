@@ -15,6 +15,7 @@ src/                     Reusable command-line pipeline
   audit_task_data.py      Check dataset integrity and split overlap
   compare_label_evaluations.py  Compare classification runs on the same cases
   task_core.py, task_metrics.py, data_integrity.py  Shared helpers
+  run_lineage.py, task_generation.py  Run manifest and shared generation
   horoscope_experiments/ Earlier step-by-step horoscope and QLoRA scripts
 tests/                   Offline checks using small local fixtures
 docs/                    Pipeline guide, safeguards, and experiment notes
@@ -22,6 +23,7 @@ hugging_face_fine_tuning_learnings.md  Step-by-step learning journal
 configs/                 MLX QLoRA experiment settings
 examples/                Small inference inputs
 requirements*.txt        Main and optional MLX/CUDA dependencies
+dvc.yaml, params.yaml     Optional prepare → audit → train → evaluate pipeline
 LICENSE                  MIT license for project code
 data/                    Downloaded and prepared datasets (local only)
 models/                  Checkpoints and adapters (local only)
@@ -51,13 +53,15 @@ Run the offline checks before changing task preparation or training code:
 ```
 
 New preparations record file hashes, row counts, and exact-prompt overlap in
-their manifest. New training runs record the same file hashes; evaluation
-rejects changed data before loading model weights. For a clean new data
+their manifest. New training runs write `run_manifest.json` and a resolved
+configuration; evaluation rejects changed data or saved configuration before
+loading model weights. Training stops on cross-split prompt overlap unless
+`--allow-overlap` is set for historical experiments. For a clean new data
 directory, add `--deduplicate-cross-split --fail-on-overlap` to
 `src/prepare_task.py`. Keep historical prepared data and model runs in their
 existing directories; a clean re-preparation changes the comparison set.
 See [internal toolkit safeguards](docs/internal_toolkit.md) for commands,
-limitations, and the next operating steps. Pull requests run the offline
+limitations, and the [run lineage ADR](docs/adr/001-run-lineage-and-pipeline-orchestration.md). Pull requests run the offline
 checks in GitHub Actions.
 
 ## Run a first task
@@ -65,20 +69,28 @@ checks in GitHub Actions.
 Emotion classification is a small-output example. Prepare it once, then run a two-step check:
 
 ```bash
-.venv/bin/python src/prepare_task.py --task tasks/emotion_classification.json
-.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --train-samples 32 --validation-samples 8 --max-steps 2 --output-dir models/tasks/emotion_classification/smoke-2
-.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smoke-2 --test-samples 16 --generation-examples 8
-.venv/bin/python src/infer_task.py --run-dir models/tasks/emotion_classification/smoke-2 --input 'text=I am excited to see my friends.' --temperature 0
+.venv/bin/python src/prepare_task.py --task tasks/emotion_classification.json --output-dir data/tasks/emotion_classification_clean --deduplicate-cross-split --fail-on-overlap
+.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --data-dir data/tasks/emotion_classification_clean --train-samples 32 --validation-samples 8 --max-steps 2 --output-dir models/tasks/emotion_classification/smoke-2-clean
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smoke-2-clean --test-samples 16 --generation-examples 8
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smoke-2-clean --test-samples 16 --generation-examples 8 --base-only
+.venv/bin/python src/infer_task.py --run-dir models/tasks/emotion_classification/smoke-2-clean --input 'text=I am excited to see my friends.' --temperature 0
 ```
 
 The two-step run checks that the workflow executes; it does not establish useful classification quality. To train the configured 512-example LoRA run, use a new output directory:
 
 ```bash
-.venv/bin/python src/train_task.py --task tasks/emotion_classification.json
-.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/lora-512
+.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --data-dir data/tasks/emotion_classification_clean --output-dir models/tasks/emotion_classification/clean-lora-512
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/clean-lora-512
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/clean-lora-512 --base-only
 ```
 
 Preparation and training refuse to overwrite nonempty output directories. If a dataset is already prepared, skip preparation. To repeat a run, pass a new `--output-dir`.
+
+For optional stage orchestration, install DVC separately, run `dvc init`, review
+the paths in `params.yaml`, then run `dvc repro`. The DVC pipeline writes a
+separate clean dataset and evaluates both the adapter and its base model.
+See the [run lineage ADR](docs/adr/001-run-lineage-and-pipeline-orchestration.md)
+for the manifest fields and current limits.
 
 ## Included tasks
 

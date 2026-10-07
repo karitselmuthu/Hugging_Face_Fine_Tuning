@@ -10,7 +10,9 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from data_integrity import verify_prepared_data
+from run_lineage import load_run_manifest, verify_run_data
 from task_core import choose_device, encode_example, load_saved_run, load_task, preparation_spec, prepared_dir, read_jsonl
+from task_generation import generate_text
 from task_metrics import score_generations
 
 
@@ -42,6 +44,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--base-only", action="store_true", help="Score the starting model without the saved adapter")
     args = parser.parse_args()
+    manifest = load_run_manifest(args.run_dir)
     task = load_task(args.run_dir / "task_config.json")
     evaluation = task.get("evaluation", {})
     balanced = args.balanced_per_label is not None
@@ -59,18 +62,24 @@ def main():
     else:
         test_limit = args.test_samples if args.test_samples is not None else 128
         generation_examples = args.generation_examples if args.generation_examples is not None else evaluation.get("generation_examples", 5)
-    max_new_tokens = args.max_new_tokens if args.max_new_tokens is not None else evaluation.get("max_new_tokens", 80)
+    evaluation_decoding = dict(manifest["evaluation_decoding"]) if manifest else {
+        "max_new_tokens": evaluation.get("max_new_tokens", 80), "temperature": 0,
+        "top_p": 1, "repetition_penalty": 1, "seed": 42}
+    max_new_tokens = args.max_new_tokens if args.max_new_tokens is not None else evaluation_decoding["max_new_tokens"]
+    evaluation_decoding["max_new_tokens"] = max_new_tokens
     if min(test_limit, generation_examples, max_new_tokens) < 1:
         parser.error("sample counts and max-new-tokens must be positive")
-    data_dir = args.data_dir or prepared_dir(task)
+    data_dir = args.data_dir or (Path(manifest["prepared_data_dir"]) if manifest else prepared_dir(task))
     prepared = load_task(data_dir / "task_config.json")
     if preparation_spec(prepared) != preparation_spec(task):
         parser.error("Prepared data and saved run use different source, fields, or prompt settings")
     summary = json.loads((args.run_dir / "run_summary.json").read_text(encoding="utf-8"))
     prepared_artifacts = verify_prepared_data(data_dir, summary.get("prepared_artifacts"))
+    verify_run_data(manifest, data_dir, prepared_artifacts)
     if args.base_only:
         tokenizer = AutoTokenizer.from_pretrained(args.run_dir / "final", local_files_only=True)
-        model = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto")
+        revision = manifest["starting_model"]["resolved_revision"] if manifest else None
+        model = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto", revision=revision)
         model = model.to(choose_device(args.device))
         model.eval()
     else:
@@ -102,18 +111,10 @@ def main():
         total_tokens += tokens
         scored += 1
         if len(examples) < generation_examples:
-            torch.manual_seed(summary["seed"] + len(examples))
-            prompt_ids = tokenizer(row["prompt"], return_tensors="pt", add_special_tokens=False).to(device)
-            with torch.inference_mode():
-                output = model.generate(
-                    **prompt_ids,
-                    max_new_tokens=min(max_new_tokens, task["max_length"] - prompt_ids["input_ids"].shape[1]),
-                    do_sample=False,
-                    pad_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id,
-                )
-            response_ids = output[0][prompt_ids["input_ids"].shape[1]:]
+            case_decoding = dict(evaluation_decoding, seed=summary["seed"] + len(examples))
             examples.append({"prompt": row["prompt"], "reference": row["response"], "inputs": row.get("inputs", {}),
-                             "output": tokenizer.decode(response_ids, skip_special_tokens=True).strip()})
+                             "output": generate_text(model, tokenizer, row["prompt"], task["max_length"],
+                                                     case_decoding, device)})
         if scored == test_limit:
             break
     if not total_tokens:
@@ -127,6 +128,8 @@ def main():
         "sampling": {"method": "balanced_per_label", "per_label": args.balanced_per_label, "seed": summary["seed"]}
                     if balanced else {"method": "random", "seed": summary["seed"]},
         "prepared_artifacts": prepared_artifacts,
+        "run_manifest_schema": manifest["schema_version"] if manifest else None,
+        "decoding": evaluation_decoding,
         f"{args.split}_examples": scored, "skipped_for_length": skipped,
         "response_tokens": total_tokens, "response_loss": total_loss / total_tokens,
         "response_perplexity": math.exp(total_loss / total_tokens),

@@ -19,6 +19,13 @@ For the internal toolkit's file fingerprints, split-overlap audit, strict
 preparation flags, and offline checks, see the
 [safeguards guide](internal_toolkit.md).
 
+The commands below also document earlier experiments. Historical prepared
+emotion data contains cross-split exact-prompt overlap. For a new run, create
+a clean prepared directory with `--deduplicate-cross-split --fail-on-overlap`
+and pass that directory as `--data-dir` when training. To repeat a historical
+run on the original data, training requires `--allow-overlap`. New runs save a
+versioned [run manifest](adr/001-run-lineage-and-pipeline-orchestration.md).
+
 Training tokenizes these two fields separately. Prompt token labels are `-100`,
 so the loss is applied only to the response and EOS token. The train,
 validation, and test splits stay separate. The trainer **skips** examples
