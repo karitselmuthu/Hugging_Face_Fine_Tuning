@@ -25,6 +25,13 @@ a clean prepared directory with `--deduplicate-cross-split --fail-on-overlap`
 and pass that directory as `--data-dir` when training. To repeat a historical
 run on the original data, training requires `--allow-overlap`. New runs save a
 versioned [run manifest](adr/001-run-lineage-and-pipeline-orchestration.md).
+Every label comparison now requires a base-model evaluation for each trained
+run on the same cases. Before the comparison commands below, repeat each
+`evaluate_task.py` command with `--base-only`, preserving its `--split`,
+`--balanced-per-label` or `--test-samples`, `--generation-examples`, and
+`--max-new-tokens` flags. The comparison command finds the matching
+`base_*_evaluation.json` beside each trained result. If you used custom
+evaluation paths, pass `--first-base` and `--second-base` explicitly.
 
 Training tokenizes these two fields separately. Prompt token labels are `-100`,
 so the loss is applied only to the response and EOS token. The train,

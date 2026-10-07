@@ -55,7 +55,8 @@ Run the offline checks before changing task preparation or training code:
 New preparations record file hashes, row counts, and exact-prompt overlap in
 their manifest. New training runs write `run_manifest.json` and a resolved
 configuration; evaluation rejects changed data or saved configuration before
-loading model weights. Training stops on cross-split prompt overlap unless
+loading model weights. CI audits a checked-in prepared-data fixture. Training
+calls the same audit code and stops on cross-split prompt overlap unless
 `--allow-overlap` is set for historical experiments. For a clean new data
 directory, add `--deduplicate-cross-split --fail-on-overlap` to
 `src/prepare_task.py`. Keep historical prepared data and model runs in their
@@ -73,6 +74,7 @@ Emotion classification is a small-output example. Prepare it once, then run a tw
 .venv/bin/python src/train_task.py --task tasks/emotion_classification.json --data-dir data/tasks/emotion_classification_clean --train-samples 32 --validation-samples 8 --max-steps 2 --output-dir models/tasks/emotion_classification/smoke-2-clean
 .venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smoke-2-clean --test-samples 16 --generation-examples 8
 .venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/smoke-2-clean --test-samples 16 --generation-examples 8 --base-only
+.venv/bin/python src/compare_label_evaluations.py models/tasks/emotion_classification/smoke-2-clean/base_test_evaluation.json models/tasks/emotion_classification/smoke-2-clean/test_evaluation.json
 .venv/bin/python src/infer_task.py --run-dir models/tasks/emotion_classification/smoke-2-clean --input 'text=I am excited to see my friends.' --temperature 0
 ```
 
@@ -89,6 +91,9 @@ Preparation and training refuse to overwrite nonempty output directories. If a d
 For optional stage orchestration, install DVC separately, run `dvc init`, review
 the paths in `params.yaml`, then run `dvc repro`. The DVC pipeline writes a
 separate clean dataset and evaluates both the adapter and its base model.
+Manual label comparisons require a matching base-model evaluation for each
+trained run; generate one with `evaluate_task.py --base-only` using the same
+split and sampling flags.
 See the [run lineage ADR](docs/adr/001-run-lineage-and-pipeline-orchestration.md)
 for the manifest fields and current limits.
 

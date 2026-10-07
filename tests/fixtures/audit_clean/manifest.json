@@ -1,0 +1,31 @@
+{
+  "task": "audit_fixture",
+  "counts": {
+    "train": 1,
+    "validation": 1,
+    "test": 1
+  },
+  "artifacts": {
+    "train.jsonl": {
+      "sha256": "2e17916de826b5e68921e4ca700d4093a1146343d89a33794d4b4cb871e06fa3",
+      "rows": 1
+    },
+    "validation.jsonl": {
+      "sha256": "bd6ac6fcf26a81827c376d0d08ae032ff4c26fbea3be0845c4ee65e1ca71c224",
+      "rows": 1
+    },
+    "test.jsonl": {
+      "sha256": "615e8c2543b4d62a6474bd0c359a9b42c681d93768ce47bae08020a61d88a274",
+      "rows": 1
+    },
+    "task_config.json": {
+      "sha256": "0acd90572ad50a97136867fb20b3b13774322c3e3cfdf93358b1ae771fc24c8b",
+      "rows": 1
+    }
+  },
+  "prompt_overlap": {
+    "train_validation": 0,
+    "train_test": 0,
+    "validation_test": 0
+  }
+}

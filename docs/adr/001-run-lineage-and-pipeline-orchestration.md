@@ -15,7 +15,10 @@ Each new training run writes `resolved_config.json` and a versioned
 `run_manifest.json`. Evaluation checks the run files and prepared-data
 fingerprints before model loading; inference checks the saved run files.
 Both commands use `task_generation.generate_text()`. Training rejects exact
-cross-split prompt overlap unless explicitly allowed for historical data.
+cross-split prompt overlap through the shared audit module unless explicitly
+allowed for historical data. CI audits a checked-in clean fixture, while local
+prepared datasets are audited before training. The label comparison command
+requires a matching base evaluation for each trained run.
 
 `dvc.yaml` offers an optional prepare → audit → train → evaluate graph, with
 a second evaluation of the base model and a paired comparison. `params.yaml` selects the task and

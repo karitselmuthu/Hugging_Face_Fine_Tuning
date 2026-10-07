@@ -141,6 +141,21 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertFalse(report.exists())
 
+    def test_training_uses_audit_gate_before_model_load(self):
+        rows = [{"text": "the same input", "label": index % 6} for index in range(30)]
+        self.source_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        self.assertEqual(self.prepare().returncode, 0)
+        run_dir = self.directory / "would_train"
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "src/train_task.py"), "--task", str(self.task_path),
+             "--data-dir", str(self.output_dir), "--output-dir", str(run_dir),
+             "--train-samples", "1", "--validation-samples", "1", "--max-steps", "1"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("Cross-split prompt overlap", result.stderr)
+        self.assertFalse(run_dir.exists())
+
     def test_deduplication_preserves_heldout_rows_and_clears_overlap(self):
         rows = [{"text": "shared input" if index < 12 else f"unique {index}",
                  "label": index % 6} for index in range(30)]

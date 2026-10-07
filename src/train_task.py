@@ -10,7 +10,7 @@ from datasets import Dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
-from data_integrity import prompt_overlap, verify_prepared_data
+from audit_task_data import audit_prepared_data
 from run_lineage import write_run_manifest
 from task_core import ROOT, ResponseOnlyCollator, encode_example, load_task, preparation_spec, prepared_dir, read_jsonl
 
@@ -104,10 +104,13 @@ def main():
     prepared = load_task(data_dir / "task_config.json")
     if preparation_spec(prepared) != preparation_spec(task):
         parser.error("Prepared data uses different source, fields, or prompt settings; rerun prepare_task.py")
-    prepared_artifacts = verify_prepared_data(data_dir)
-    overlap = prompt_overlap(data_dir)
-    if any(overlap.values()) and not args.allow_overlap:
-        parser.error(f"Cross-split prompt overlap {overlap}; prepare clean data or pass --allow-overlap for historical experiments")
+    try:
+        audit = audit_prepared_data(data_dir, fail_on_overlap=not args.allow_overlap)
+    except ValueError as exc:
+        parser.error(str(exc))
+    prepared_artifacts = audit["artifacts"]
+    if any(audit["prompt_overlap"].values()):
+        print(f"Allowed cross-split prompt overlap: {audit['prompt_overlap']}", flush=True)
 
     starting_model = args.starting_model or task["base_model"]
     revision = task.get("base_model_revision") if args.starting_model is None else None

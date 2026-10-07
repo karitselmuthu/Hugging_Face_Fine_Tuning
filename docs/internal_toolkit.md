@@ -42,7 +42,8 @@ evaluation rows may differ. To pin a Hugging Face dataset version, set
 
 New training runs record hashes of the exact prepared files they used.
 Evaluation checks those hashes and the task's preparation settings before
-loading model weights. Training now rejects exact cross-split prompt overlap;
+loading model weights. Training calls `audit_task_data.audit_prepared_data`
+before loading a model and rejects exact cross-split prompt overlap;
 use `--allow-overlap` only to repeat historical experiments against the old
 prepared data. New runs also write `run_manifest.json` and
 `resolved_config.json` with model revision, saved artifact hashes, decoding
@@ -75,7 +76,9 @@ dataset. Run it locally:
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-GitHub Actions runs the same checks on pushes and pull requests. Direct
+GitHub Actions runs the same checks on pushes and pull requests. It also runs
+the audit command against a checked-in, clean prepared-data fixture; real
+downloaded datasets remain local and are audited before training. Direct
 dependency versions are pinned in `requirements.txt`; a platform-specific
 lock of all transitive dependencies and a GPU training gate remain future
 work. The offline checks establish code and data-handling behavior, not
