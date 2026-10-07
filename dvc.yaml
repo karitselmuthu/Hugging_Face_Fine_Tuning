@@ -8,7 +8,10 @@ stages:
       - ${pipeline.task}
       - src/prepare_task.py
       - src/data_integrity.py
-      - src/task_core.py
+      - src/data_quality.py
+      - src/task_config.py
+      - src/task_io.py
+      - src/task_prompts.py
       - requirements.txt
     outs:
       - ${pipeline.data_dir}
@@ -20,6 +23,8 @@ stages:
       - ${pipeline.data_dir}
       - src/audit_task_data.py
       - src/data_integrity.py
+      - src/data_quality.py
+      - src/task_io.py
     outs:
       - ${pipeline.audit_report}
   train:
@@ -32,9 +37,14 @@ stages:
       - ${pipeline.audit_report}
       - src/train_task.py
       - src/audit_task_data.py
-      - src/task_core.py
       - src/data_integrity.py
+      - src/data_quality.py
+      - src/task_config.py
+      - src/task_io.py
+      - src/task_model.py
+      - src/task_prompts.py
       - src/run_lineage.py
+      - src/training_resume.py
       - requirements.txt
     outs:
       - ${pipeline.run_dir}
@@ -48,7 +58,10 @@ stages:
       - src/evaluate_task.py
       - src/task_generation.py
       - src/task_metrics.py
-      - src/task_core.py
+      - src/task_config.py
+      - src/task_io.py
+      - src/task_model.py
+      - src/task_prompts.py
       - src/run_lineage.py
       - requirements.txt
     outs:
@@ -63,7 +76,10 @@ stages:
       - src/evaluate_task.py
       - src/task_generation.py
       - src/task_metrics.py
-      - src/task_core.py
+      - src/task_config.py
+      - src/task_io.py
+      - src/task_model.py
+      - src/task_prompts.py
       - src/run_lineage.py
       - requirements.txt
     outs:

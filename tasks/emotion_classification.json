@@ -2,6 +2,7 @@
   "name": "emotion_classification",
   "source": {
     "dataset": "dair-ai/emotion",
+    "revision": "cab853a1dbdf4c42c2b3ef2173804746df8825fe",
     "config": "split",
     "train_split": "train",
     "validation_split": "validation",
@@ -9,6 +10,7 @@
   },
   "prompt_template": "### Instruction:\nClassify the emotion in the text. Answer with exactly one label: sadness, joy, love, anger, fear, or surprise.\n\n### Text:\n{text}\n\n### Emotion:\n",
   "response_field": "label",
+  "prompt_version": "v1",
   "response_map": {
     "0": "sadness",
     "1": "joy",
@@ -18,12 +20,19 @@
     "5": "surprise"
   },
   "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "base_model_revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
   "max_length": 192,
   "evaluation": {
     "metric": "label_accuracy",
     "labels": ["sadness", "joy", "love", "anger", "fear", "surprise"],
     "generation_examples": 128,
     "max_new_tokens": 8
+  },
+  "promotion": {
+    "minimum_examples": 128,
+    "minimum_metrics": {"accuracy": 0.70, "macro_f1": 0.55},
+    "minimum_lift": {"accuracy": 0.05},
+    "maximum_invalid_label_outputs": 0
   },
   "training": {
     "method": "lora",

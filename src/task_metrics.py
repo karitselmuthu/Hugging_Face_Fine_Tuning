@@ -1,6 +1,7 @@
 """Small, transparent task metrics for generated examples."""
 
 import re
+import random
 
 
 def words(text):
@@ -70,3 +71,26 @@ def score_generations(task, examples):
         return {"metric": metric, "examples": len(examples), "mean_f1": sum(values) / len(values),
                 "note": "Word-overlap diagnostic; does not detect invented facts."}
     raise ValueError(f"Unknown evaluation metric: {metric}")
+
+
+def bootstrap_intervals(task, examples, seed, resamples=500):
+    """Estimate descriptive 95% intervals by resampling generated cases."""
+    if not examples or not task.get("evaluation", {}).get("metric"):
+        return None
+    keys = {"label_accuracy": ("accuracy", "macro_f1"),
+            "concept_coverage_exact": ("mean_output_concept_fraction",),
+            "rouge_l_f1": ("mean_f1",)}[task["evaluation"]["metric"]]
+    rng = random.Random(seed)
+    values = {key: [] for key in keys}
+    for _ in range(resamples):
+        sample = [dict(examples[rng.randrange(len(examples))]) for _ in examples]
+        scored = score_generations(task, sample)
+        for key in keys:
+            values[key].append(scored[key])
+    intervals = {}
+    for key, samples in values.items():
+        samples.sort()
+        intervals[key] = {"lower": samples[int(0.025 * (resamples - 1))],
+                          "upper": samples[int(0.975 * (resamples - 1))]}
+    return {"method": "case_bootstrap_percentile", "confidence": 0.95,
+            "resamples": resamples, "seed": seed, "intervals": intervals}

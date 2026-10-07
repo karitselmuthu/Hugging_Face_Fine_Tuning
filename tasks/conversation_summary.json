@@ -2,13 +2,16 @@
   "name": "conversation_summary",
   "source": {
     "dataset": "knkarthick/samsum",
+    "revision": "6b929ff10edec703164e3ddb2e94aae058c9ab5f",
     "train_split": "train",
     "validation_split": "validation",
     "test_split": "test"
   },
   "prompt_template": "### Instruction:\nSummarize the following conversation in one or two sentences.\n\n### Conversation:\n{dialogue}\n\n### Summary:\n",
   "response_field": "summary",
+  "prompt_version": "v1",
   "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "base_model_revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
   "max_length": 512,
   "evaluation": {
     "metric": "rouge_l_f1",

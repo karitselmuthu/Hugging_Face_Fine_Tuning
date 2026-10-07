@@ -8,11 +8,16 @@ from pathlib import Path
 
 from datasets import Dataset
 from peft import LoraConfig, TaskType, get_peft_model
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
 from audit_task_data import audit_prepared_data
+from data_quality import audit_sequence_lengths
 from run_lineage import write_run_manifest
-from task_core import ROOT, ResponseOnlyCollator, encode_example, load_task, preparation_spec, prepared_dir, read_jsonl
+from task_config import load_task, preparation_spec
+from task_io import ROOT, prepared_dir, read_jsonl
+from task_model import ResponseOnlyCollator
+from task_prompts import encode_example
+from training_resume import checkpoint_spec, resolve_checkpoint, write_guard
 
 
 def select_encoded(path, tokenizer, max_length, limit, seed, balanced_labels=None):
@@ -64,10 +69,13 @@ def main():
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--starting-model", help="Base or saved full model; defaults to task base_model")
+    parser.add_argument("--starting-model-revision", help="Immutable commit when overriding a Hub starting model")
     parser.add_argument("--method", choices=["full", "lora"])
     parser.add_argument("--train-samples", type=int)
     parser.add_argument("--validation-samples", type=int)
     parser.add_argument("--max-steps", type=int, default=-1, help="Positive value for a short smoke run")
+    parser.add_argument("--resume-from-checkpoint", help="Use latest or an existing checkpoint path inside --output-dir")
+    parser.add_argument("--save-steps", type=int, help="Checkpoint interval (default: task setting or 100)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--balanced-train", action="store_true",
                         help="For label tasks, draw nearly equal training counts per label without replacement")
@@ -79,8 +87,9 @@ def main():
     method = args.method or settings["method"]
     train_limit = args.train_samples if args.train_samples is not None else settings["train_samples"]
     validation_limit = args.validation_samples if args.validation_samples is not None else settings["validation_samples"]
-    if min(train_limit, validation_limit) < 1 or args.max_steps == 0 or args.max_steps < -1:
-        parser.error("sample limits must be positive and max-steps must be -1 or positive")
+    save_steps = args.save_steps if args.save_steps is not None else settings.get("save_steps", 100)
+    if min(train_limit, validation_limit, save_steps) < 1 or args.max_steps == 0 or args.max_steps < -1:
+        parser.error("sample limits and save-steps must be positive; max-steps must be -1 or positive")
     labels = None
     if args.balanced_train:
         evaluation = task.get("evaluation", {})
@@ -96,8 +105,10 @@ def main():
     if args.max_steps != -1:
         run_name += f"-steps-{args.max_steps}"
     output_dir = args.output_dir or ROOT / "models" / "tasks" / task["name"] / run_name
-    if output_dir.exists() and any(output_dir.iterdir()):
+    if output_dir.exists() and any(output_dir.iterdir()) and not args.resume_from_checkpoint:
         parser.error(f"output directory is not empty: {output_dir}")
+    if args.resume_from_checkpoint and not output_dir.is_dir():
+        parser.error(f"cannot resume: output directory does not exist: {output_dir}")
     for name in ("train", "validation", "test"):
         if not (data_dir / f"{name}.jsonl").is_file():
             parser.error(f"Missing prepared {name} data: {data_dir}")
@@ -113,15 +124,27 @@ def main():
         print(f"Allowed cross-split prompt overlap: {audit['prompt_overlap']}", flush=True)
 
     starting_model = args.starting_model or task["base_model"]
-    revision = task.get("base_model_revision") if args.starting_model is None else None
-    tokenizer = AutoTokenizer.from_pretrained(starting_model, revision=revision)
+    revision = args.starting_model_revision or (task.get("base_model_revision") if args.starting_model is None else None)
+    config = AutoConfig.from_pretrained(starting_model, revision=revision, trust_remote_code=False)
+    model_commit = getattr(config, "_commit_hash", None) or revision
+    if model_commit is None and not Path(starting_model).exists():
+        parser.error("Hub model revision could not be resolved; set --starting-model-revision to an immutable commit")
+    tokenizer = AutoTokenizer.from_pretrained(starting_model, revision=model_commit,
+                                              trust_remote_code=False)
     tokenizer.pad_token = tokenizer.eos_token
+    token_lengths = audit_sequence_lengths(data_dir, tokenizer, task["max_length"])
+    max_fraction = task.get("data_quality", {}).get("max_overlength_fraction", 1)
+    exceeded = {split: item for split, item in token_lengths.items() if item["fraction_over"] > max_fraction}
+    if exceeded:
+        parser.error(f"Rows above {task['max_length']} tokens exceed data_quality.max_overlength_fraction "
+                     f"{max_fraction}: {exceeded}")
+    print(f"Sequence-length audit: {json.dumps(token_lengths)}", flush=True)
     train, train_skipped, train_label_counts = select_encoded(
         data_dir / "train.jsonl", tokenizer, task["max_length"], train_limit, args.seed, labels)
     validation, validation_skipped, _ = select_encoded(
         data_dir / "validation.jsonl", tokenizer, task["max_length"], validation_limit, args.seed)
-    model = AutoModelForCausalLM.from_pretrained(starting_model, dtype="auto", revision=revision)
-    model_commit = getattr(model.config, "_commit_hash", None) or revision
+    model = AutoModelForCausalLM.from_pretrained(starting_model, dtype="auto", revision=model_commit,
+                                                trust_remote_code=False, use_safetensors=True)
     model.config.use_cache = False
     model.config.pad_token_id = tokenizer.pad_token_id
     if method == "lora":
@@ -135,7 +158,19 @@ def main():
         )
         model = get_peft_model(model, lora)
         model.print_trainable_parameters()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    guard = checkpoint_spec(task, prepared_artifacts, model=starting_model, revision=model_commit,
+                            method=method, train_limit=train_limit, validation_limit=validation_limit,
+                            max_steps=args.max_steps, seed=args.seed, balanced=args.balanced_train,
+                            save_steps=save_steps)
+    if args.resume_from_checkpoint:
+        try:
+            checkpoint = resolve_checkpoint(output_dir, args.resume_from_checkpoint, guard)
+        except ValueError as exc:
+            parser.error(str(exc))
+    else:
+        checkpoint = None
+        output_dir.mkdir(parents=True, exist_ok=True)
+        write_guard(output_dir, guard)
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         per_device_train_batch_size=settings["batch_size"],
@@ -148,7 +183,9 @@ def main():
         learning_rate=settings["learning_rate"],
         logging_steps=max(1, min(25, len(train) // 4)),
         eval_strategy="no",
-        save_strategy="no",
+        save_strategy="steps",
+        save_steps=save_steps,
+        save_total_limit=2,
         dataloader_pin_memory=False,
         report_to="none",
         seed=args.seed,
@@ -162,14 +199,20 @@ def main():
         processing_class=tokenizer,
     )
     print(f"Training {task['name']} with {method}: {len(train)} train, {len(validation)} validation; device={training_args.device}", flush=True)
-    train_metrics = trainer.train().metrics
+    train_metrics = trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None).metrics
     validation_metrics = trainer.evaluate()
     final_dir = output_dir / "final"
     trainer.save_model(str(final_dir))
     tokenizer.save_pretrained(str(final_dir))
+    weights = list(final_dir.glob("*.safetensors"))
+    unsafe_weights = [path for path in final_dir.glob("*.bin") if path.name != "training_args.bin"]
+    unsafe_weights += list(final_dir.glob("*.pt"))
+    if not weights or unsafe_weights:
+        raise RuntimeError(f"Final model must contain safetensors weights only: {final_dir}")
     summary = {
         "task": task["name"], "method": method, "starting_model": starting_model,
         "starting_model_revision": revision,
+        "tokenizer_revision": model_commit,
         "train_examples": len(train), "validation_examples": len(validation),
         "train_skipped_for_length": train_skipped,
         "validation_skipped_for_length": validation_skipped,
@@ -177,7 +220,10 @@ def main():
                            "label_counts": train_label_counts} if args.balanced_train else {"method": "random"},
         "max_length": task["max_length"], "seed": args.seed,
         "max_steps": args.max_steps,
+        "save_steps": save_steps,
+        "resumed_from_checkpoint": str(checkpoint) if checkpoint else None,
         "prepared_artifacts": prepared_artifacts,
+        "data_audit": {"quality": audit["quality"], "token_lengths": token_lengths},
         "train_metrics": train_metrics, "validation_metrics": validation_metrics,
         "final_dir": str(final_dir),
     }

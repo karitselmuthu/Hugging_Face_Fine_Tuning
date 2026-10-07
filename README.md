@@ -14,8 +14,13 @@ src/                     Reusable command-line pipeline
   infer_task.py           Generate from a saved run
   audit_task_data.py      Check dataset integrity and split overlap
   compare_label_evaluations.py  Compare classification runs on the same cases
-  task_core.py, task_metrics.py, data_integrity.py  Shared helpers
+  task_config.py, task_prompts.py, task_io.py, task_model.py  Focused shared helpers
+  task_core.py            Compatibility imports for older scripts
+  data_integrity.py, data_quality.py  Fingerprints and quality audit
   run_lineage.py, task_generation.py  Run manifest and shared generation
+  training_resume.py      Checkpoint settings and resume checks
+  promote_run.py          Metric gate and local registry record
+  summarize_seed_runs.py  Compare repeated runs with different seeds
   horoscope_experiments/ Earlier step-by-step horoscope and QLoRA scripts
 tests/                   Offline checks using small local fixtures
 docs/                    Pipeline guide, safeguards, and experiment notes
@@ -30,7 +35,7 @@ models/                  Checkpoints and adapters (local only)
 results/                 Generated evaluations (local only)
 ```
 
-Use the four `*_task.py` commands in `src/` for new scenarios. The scripts in [src/horoscope_experiments](src/horoscope_experiments/README.md) preserve the earlier, horoscope-specific sequence. Run commands from the project root. The [reusable pipeline guide](docs/reusable_pipeline.md), [internal toolkit safeguards](docs/internal_toolkit.md), and [learning journal](hugging_face_fine_tuning_learnings.md) give the full workflow and history.
+Use the four `*_task.py` commands in `src/` for new scenarios. The scripts in [src/horoscope_experiments](src/horoscope_experiments/README.md) preserve the earlier, horoscope-specific sequence; [this example](examples/horoscope_governed.md) runs horoscope through the governed pipeline. Run commands from the project root. See the [architecture diagram](docs/architecture.md), [reusable pipeline guide](docs/reusable_pipeline.md), [internal toolkit safeguards](docs/internal_toolkit.md), and [learning journal](hugging_face_fine_tuning_learnings.md).
 
 ## Set up
 
@@ -55,7 +60,11 @@ Run the offline checks before changing task preparation or training code:
 New preparations record file hashes, row counts, and exact-prompt overlap in
 their manifest. New training runs write `run_manifest.json` and a resolved
 configuration; evaluation rejects changed data or saved configuration before
-loading model weights. CI audits a checked-in prepared-data fixture. Training
+loading model weights. The data audit also reports likely near duplicates,
+label counts, and possible PII or secrets; training checks token lengths with
+the resolved tokenizer. Potential secrets stop
+training by default; PII and near-duplicate findings are reported for review
+unless the task policy says to fail. CI audits a checked-in prepared-data fixture. Training
 calls the same audit code and stops on cross-split prompt overlap unless
 `--allow-overlap` is set for historical experiments. For a clean new data
 directory, add `--deduplicate-cross-split --fail-on-overlap` to
@@ -84,7 +93,15 @@ The two-step run checks that the workflow executes; it does not establish useful
 .venv/bin/python src/train_task.py --task tasks/emotion_classification.json --data-dir data/tasks/emotion_classification_clean --output-dir models/tasks/emotion_classification/clean-lora-512
 .venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/clean-lora-512
 .venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/clean-lora-512 --base-only
+.venv/bin/python src/promote_run.py --run-dir models/tasks/emotion_classification/clean-lora-512
 ```
+
+Promotion checks the **example** emotion policy on at least 128 generated test cases: test accuracy at least 0.70,
+macro-F1 at least 0.55, accuracy lift over the same base model at least 0.05,
+and no invalid labels. A short smoke run is expected to fail this quality
+gate. Passing writes a local registry record under `models/registry/`; it does
+not publish or deploy a model. The other three tasks need their own promotion
+policy before they can use this command.
 
 Preparation and training refuse to overwrite nonempty output directories. If a dataset is already prepared, skip preparation. To repeat a run, pass a new `--output-dir`.
 

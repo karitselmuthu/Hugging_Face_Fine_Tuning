@@ -10,8 +10,11 @@ from pathlib import Path
 
 from datasets import Dataset, load_dataset
 
-from data_integrity import deduplicate_cross_split_prompts, prompt_overlap, snapshot_prepared_data
-from task_core import format_prompt, load_task, prepared_dir
+from data_integrity import deduplicate_cross_split_prompts, fingerprint_file, prompt_overlap, snapshot_prepared_data
+from data_quality import check_quality_policy, scan_data_quality
+from task_config import load_task
+from task_io import prepared_dir
+from task_prompts import format_prompt
 
 
 def check_columns(dataset, task, split_name):
@@ -129,6 +132,8 @@ def main():
         if min(counts.values()) == 0:
             raise ValueError("A prepared split is empty; choose a larger source dataset")
         (staging / "task_config.json").write_text(args.task.read_text(encoding="utf-8"), encoding="utf-8")
+        quality = scan_data_quality(staging)
+        check_quality_policy(quality, task)
         artifacts = snapshot_prepared_data(staging)
         overlap = prompt_overlap(staging)
         if any(overlap.values()):
@@ -139,11 +144,13 @@ def main():
         manifest = {
             "task": task["name"],
             "source": str(args.local_jsonl) if args.local_jsonl else task["source"].get("repository", task["source"]["dataset"]),
+            "source_sha256": fingerprint_file(args.local_jsonl)["sha256"] if args.local_jsonl else None,
             "seed": args.seed,
             "counts": counts,
             "format": "prompt/response JSONL",
             "artifacts": artifacts,
             "prompt_overlap": overlap,
+            "quality": quality,
             "removed_cross_split": removed,
         }
         (staging / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

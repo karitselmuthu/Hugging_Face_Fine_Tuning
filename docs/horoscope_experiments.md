@@ -6,7 +6,9 @@ the project progression before the reusable task pipeline. Run commands from
 the repository root. They require locally prepared data or saved models;
 neither is included in Git. Generated evaluation files under `results/` are
 local too. For the public starting path, see the [README](../README.md) and
-[reusable pipeline guide](reusable_pipeline.md).
+[reusable pipeline guide](reusable_pipeline.md). For a new horoscope run with
+the shared audit and run manifest, use the
+[governed horoscope example](../examples/horoscope_governed.md).
 
 ## Run the saved model
 

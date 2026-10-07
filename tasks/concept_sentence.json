@@ -3,9 +3,10 @@
   "source": {
     "dataset": "parquet",
     "repository": "GEM/common_gen",
+    "repository_revision": "62063f847b090959b6fd342f9c8582f61a6bbb53",
     "data_files": {
-      "train": "hf://datasets/GEM/common_gen@refs/convert/parquet/default/train/0000.parquet",
-      "validation": "hf://datasets/GEM/common_gen@refs/convert/parquet/default/validation/0000.parquet"
+      "train": "hf://datasets/GEM/common_gen@62063f847b090959b6fd342f9c8582f61a6bbb53/default/train/0000.parquet",
+      "validation": "hf://datasets/GEM/common_gen@62063f847b090959b6fd342f9c8582f61a6bbb53/default/validation/0000.parquet"
     },
     "train_split": "train",
     "validation_split": null,
@@ -15,8 +16,10 @@
   },
   "prompt_template": "### Instruction:\nWrite one natural sentence that uses all the supplied concepts.\n\n### Concepts:\n{concepts}\n\n### Sentence:\n",
   "response_field": "target",
+  "prompt_version": "v1",
   "field_transforms": {"concepts": "join_comma"},
   "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "base_model_revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
   "max_length": 128,
   "evaluation": {
     "metric": "concept_coverage_exact",

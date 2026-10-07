@@ -1,57 +1,51 @@
 # ADR-001: Run lineage and pipeline orchestration
 
-Status: implemented for new runs; optional DVC path awaits a local end-to-end run.
+Status: implemented for new runs; optional DVC graph awaits a local end-to-end run.
 
 ## Context
 
-Preparation, training, evaluation, and inference have been separate commands.
-The prepared-data manifest and training summary existed, but model revision,
-resolved settings, decoding defaults, and package versions were not bound in
-one run record.
+Preparation, training, evaluation, and inference were separate commands. The
+prepared-data manifest and training summary did not bind the exact model,
+prompt, source, and decoding settings into one run record.
 
 ## Decision
 
-Each new training run writes `resolved_config.json` and a versioned
-`run_manifest.json`. Evaluation checks the run files and prepared-data
-fingerprints before model loading; inference checks the saved run files.
-Both commands use `task_generation.generate_text()`. Training rejects exact
-cross-split prompt overlap through the shared audit module unless explicitly
-allowed for historical data. CI audits a checked-in clean fixture, while local
-prepared datasets are audited before training. The label comparison command
-requires a matching base evaluation for each trained run.
+Each new training run writes `resolved_config.json` and a schema 2
+`run_manifest.json`. Evaluation checks saved files and prepared-data
+fingerprints before loading model weights; inference checks the saved run.
+Both commands use `task_generation.generate_text()`. The task JSON copied
+into the run is their configuration source.
 
-`dvc.yaml` offers an optional prepare → audit → train → evaluate graph, with
-a second evaluation of the base model and a paired comparison. `params.yaml` selects the task and
+The manifest records the task and resolved-config hashes, prompt hash and
+version, prepared file hashes and counts, preparation manifest hash, saved
+model hashes, remote source revision or local source SHA, base model and
+tokenizer commit, Git state, seed, decoding defaults, and library versions.
+Local starting models are bound by file hashes. Schema 1 and historical runs
+remain readable, but they do not gain retroactive guarantees.
+
+Preparation and training use the shared audit. Exact cross-split prompt
+overlap fails training unless `--allow-overlap` is used for historical data.
+Likely near duplicates, label distribution, possible sensitive data, and
+overlength rows are reported. Secret patterns fail by default; other quality
+thresholds are task policies. CI audits a checked-in clean fixture.
+
+`dvc.yaml` defines prepare → audit → train → trained evaluation and base
+evaluation → comparison. `params.yaml` selects the emotion example and
 separate output paths. DVC is optional and is not part of `requirements.txt`.
-
-## Manifest schema 1
-
-The run manifest records the task name, SHA-256 of the saved task and resolved
-config, prompt SHA-256, hashes and row counts of prepared files, hash of the
-preparation manifest, saved summary and model artifact hashes, dataset revision when configured, starting model ID,
-requested and resolved model revision when available, Git commit and dirty state, seed,
-inference and evaluation decoding defaults, and installed library versions.
-`resolved_config.json` records the validated task and effective method, sample
-counts, sampling mode, step limit, and seed. Evaluations record their own
-decoding settings and whether schema 1 was available. Older runs remain usable
-without retroactive lineage claims.
-
-For a new run, set `source.revision` and `base_model_revision` to immutable
-Hugging Face commit IDs in the task JSON. Without them, a later prepare may
-fetch changed data, or the loader may not report a resolved model commit.
-Local starting-model directories also need external artifact versioning.
-Git commit alone does not describe uncommitted source changes.
+The label comparison requires a base result. The emotion task also has an
+example threshold gate in `promote_run.py` that writes a local registry record
+only when the held-out trained result passes.
 
 ## Options considered
 
 | Option | Strength | Limit |
 | --- | --- | --- |
-| DVC + JSON manifest | Local dependency graph and artifact cache; fits files | DVC setup and limited comparison UI |
-| MLflow | Tracking and registry for teams | Does not orchestrate or version data by itself |
-| Weights & Biases | Fast experiment UI and Trainer integration | SaaS dependency and data residency review |
+| DVC + JSON manifest | Local dependency graph and artifact cache | Setup and limited comparison UI |
+| MLflow | Team tracking and registry | Does not orchestrate or version data alone |
+| Weights & Biases | Experiment UI and Trainer integration | SaaS dependency and data residency review |
 
-DVC and MLflow can be combined later. The current internal, single-machine
-workflow does not need a tracking server.
+The internal single-machine workflow uses local files without a tracking
+server. Team use may later need a shared artifact store and approval process.
 
 ## Operating path
 
@@ -61,22 +55,18 @@ dvc init
 dvc repro
 ```
 
-Review `params.yaml` first. Choose unused output paths; the commands refuse
-to overwrite nonempty directories. `prepare` uses exact-prompt deduplication
-and strict overlap checks; `audit` writes a report only after passing. DVC
-then gates training on that report. `evaluate` and `base_evaluate` use the
-same held-out rows and generation settings; `compare` is configured for the
-emotion label task in `params.yaml`. DVC itself has not been installed
-or run in this checkout, so the pipeline definition is not yet validated
-end to end. CI runs only offline fixtures because the full datasets and model
-weights are intentionally local.
+Review `params.yaml` and choose unused output paths first. Preparation uses
+exact-prompt deduplication and strict overlap checks; the audit report gates
+training. Trained and base evaluations use the same held-out rows and
+decoding. The comparison stage is configured for emotion labels. The full
+DVC graph has not been run in this checkout; CI uses offline fixtures because
+the full datasets and weights are local.
 
-## Consequences and remaining work
+## Consequences and limits
 
-Schema 1 catches changes to saved config and prepared files, and it records
-the starting model revision when the loader exposes it. The manifest is not
-a signed attestation, and outputs still require an artifact store for shared
-team use. The DVC graph needs a local `dvc repro` check and an immutable
-dataset/model revision before it should be treated as a reproducible run.
-Before adding MLflow or a registry, collect several run manifests and decide
-which metrics and promotion rules the team actually needs.
+Schema 2 detects accidental changes in saved config, data, and model files.
+It is not a signed attestation. The near-duplicate and sensitive-data scans
+are heuristics. The example promotion policy is not organizational approval.
+Bootstrap intervals cover held-out case sampling uncertainty, while training
+variation requires separately trained seeds. A local `dvc repro` and repeated
+training runs remain validation work.

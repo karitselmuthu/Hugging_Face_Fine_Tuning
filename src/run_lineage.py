@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def sha256_bytes(value):
@@ -53,6 +53,8 @@ def package_versions():
 
 def write_run_manifest(run_dir, task, summary, data_dir, model_commit):
     run_dir = Path(run_dir)
+    prepared_manifest = json.loads((Path(data_dir) / "manifest.json").read_text(encoding="utf-8"))
+    remote_source = task["source"].get("repository", task["source"]["dataset"])
     resolved = {
         "task": task,
         "training": {
@@ -61,6 +63,8 @@ def write_run_manifest(run_dir, task, summary, data_dir, model_commit):
             "validation_examples": summary["validation_examples"],
             "sampling": summary["train_sampling"],
             "max_steps": summary["max_steps"],
+            "save_steps": summary.get("save_steps"),
+            "resumed_from_checkpoint": summary.get("resumed_from_checkpoint"),
             "seed": summary["seed"],
         },
     }
@@ -76,13 +80,21 @@ def write_run_manifest(run_dir, task, summary, data_dir, model_commit):
         "prepared_data_dir": str(Path(data_dir).resolve()),
         "prepared_artifacts": summary["prepared_artifacts"],
         "prepared_manifest_sha256": file_sha256(Path(data_dir) / "manifest.json"),
-        "dataset_revision": task["source"].get("revision"),
+        "prepared_source": prepared_manifest.get("source"),
+        "prepared_source_sha256": prepared_manifest.get("source_sha256"),
+        "dataset_revision": (task["source"].get("revision") or task["source"].get("repository_revision"))
+                            if prepared_manifest.get("source") == remote_source else None,
+        "prompt_version": task.get("prompt_version", "v1"),
         "prompt_sha256": sha256_bytes(task["prompt_template"].encode("utf-8")),
         "starting_model": {
             "identifier": summary["starting_model"],
             "requested_revision": summary.get("starting_model_revision"),
             "resolved_revision": model_commit,
+            "local_artifacts": snapshot_files(summary["starting_model"])
+                               if Path(summary["starting_model"]).is_dir() else None,
         },
+        "tokenizer": {"identifier": summary["starting_model"],
+                      "resolved_revision": summary.get("tokenizer_revision") or model_commit},
         "git_commit": git_commit(),
         "git_dirty": git_dirty(),
         "seed": summary["seed"],
@@ -102,7 +114,7 @@ def load_run_manifest(run_dir):
     if not path.exists():
         return None  # Historical runs predate schema 1.
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != SCHEMA_VERSION:
+    if manifest.get("schema_version") not in (1, SCHEMA_VERSION):
         raise ValueError(f"Unsupported run manifest schema: {manifest.get('schema_version')}")
     checks = (("resolved_config.json", "resolved_config_sha256"),
               ("task_config.json", "task_config_sha256"),
@@ -115,6 +127,9 @@ def load_run_manifest(run_dir):
         raise ValueError("Saved prompt differs from its run manifest")
     if snapshot_files(Path(run_dir) / "final") != manifest["final_artifacts"]:
         raise ValueError("Saved model artifacts differ from the run manifest")
+    local_artifacts = manifest["starting_model"].get("local_artifacts")
+    if local_artifacts is not None and snapshot_files(manifest["starting_model"]["identifier"]) != local_artifacts:
+        raise ValueError("Local starting model differs from the run manifest")
     return manifest
 
 

@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from data_integrity import prompt_overlap, snapshot_prepared_data, verify_prepared_data  # noqa: E402
 from run_lineage import load_run_manifest, verify_run_data, write_run_manifest  # noqa: E402
-from task_core import load_task, preparation_spec  # noqa: E402
+from task_config import load_task, preparation_spec  # noqa: E402
 
 
 class TaskConfigTests(unittest.TestCase):
@@ -48,6 +48,8 @@ class TaskConfigTests(unittest.TestCase):
         other = json.loads(json.dumps(task))
         other["training"]["train_samples"] = 2000
         self.assertEqual(preparation_spec(task), preparation_spec(other))
+        other["prompt_version"] = "v2"
+        self.assertNotEqual(preparation_spec(task), preparation_spec(other))
 
 
 class PreparationTests(unittest.TestCase):

@@ -2,6 +2,7 @@
   "name": "horoscope",
   "source": {
     "dataset": "karthiksagarn/astro_horoscope",
+    "revision": "4f0645b4e7f0b569c4e26bf60ec540312943e346",
     "train_split": "train",
     "validation_split": null,
     "test_split": null,
@@ -9,11 +10,13 @@
   },
   "prompt_template": "### Instruction:\nGenerate a horoscope using the following information.\n\n### Sign:\n{sign}\n\n### Category:\n{category}\n\n### Date:\n{date}\n\n### Horoscope:\n",
   "response_field": "horoscope",
+  "prompt_version": "v1",
   "field_transforms": {
     "sign": "title",
     "category": "title"
   },
   "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "base_model_revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
   "max_length": 256,
   "training": {
     "method": "lora",

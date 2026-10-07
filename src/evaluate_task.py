@@ -11,9 +11,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from data_integrity import verify_prepared_data
 from run_lineage import load_run_manifest, verify_run_data
-from task_core import choose_device, encode_example, load_saved_run, load_task, preparation_spec, prepared_dir, read_jsonl
+from task_config import load_task, preparation_spec
 from task_generation import generate_text
-from task_metrics import score_generations
+from task_io import prepared_dir, read_jsonl
+from task_metrics import bootstrap_intervals, score_generations
+from task_model import choose_device, load_saved_run
+from task_prompts import encode_example
 
 
 def select_balanced_rows(rows, labels, per_label, seed):
@@ -40,6 +43,8 @@ def main():
     parser.add_argument("--balanced-per-label", type=int,
                         help="For label tasks, score and generate this many test examples per label")
     parser.add_argument("--max-new-tokens", type=int)
+    parser.add_argument("--evaluation-seed", type=int, default=42,
+                        help="Held-out row and generation seed shared across training seeds")
     parser.add_argument("--device", choices=["auto", "cpu", "mps", "cuda"], default="auto")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--base-only", action="store_true", help="Score the starting model without the saved adapter")
@@ -77,9 +82,11 @@ def main():
     prepared_artifacts = verify_prepared_data(data_dir, summary.get("prepared_artifacts"))
     verify_run_data(manifest, data_dir, prepared_artifacts)
     if args.base_only:
-        tokenizer = AutoTokenizer.from_pretrained(args.run_dir / "final", local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(args.run_dir / "final", local_files_only=True,
+                                                  trust_remote_code=False)
         revision = manifest["starting_model"]["resolved_revision"] if manifest else None
-        model = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto", revision=revision)
+        model = AutoModelForCausalLM.from_pretrained(summary["starting_model"], dtype="auto", revision=revision,
+                                                    trust_remote_code=False, use_safetensors=True)
         model = model.to(choose_device(args.device))
         model.eval()
     else:
@@ -90,11 +97,11 @@ def main():
     test_rows = list(read_jsonl(data_dir / f"{args.split}.jsonl"))
     if balanced:
         try:
-            test_rows = select_balanced_rows(test_rows, evaluation["labels"], args.balanced_per_label, summary["seed"])
+            test_rows = select_balanced_rows(test_rows, evaluation["labels"], args.balanced_per_label, args.evaluation_seed)
         except ValueError as exc:
             parser.error(str(exc))
     else:
-        random.Random(summary["seed"]).shuffle(test_rows)
+        random.Random(args.evaluation_seed).shuffle(test_rows)
     total_loss, total_tokens, scored, skipped = 0.0, 0, 0, 0
     examples = []
     for row in test_rows:
@@ -111,7 +118,7 @@ def main():
         total_tokens += tokens
         scored += 1
         if len(examples) < generation_examples:
-            case_decoding = dict(evaluation_decoding, seed=summary["seed"] + len(examples))
+            case_decoding = dict(evaluation_decoding, seed=args.evaluation_seed + len(examples))
             examples.append({"prompt": row["prompt"], "reference": row["response"], "inputs": row.get("inputs", {}),
                              "output": generate_text(model, tokenizer, row["prompt"], task["max_length"],
                                                      case_decoding, device)})
@@ -121,19 +128,23 @@ def main():
         raise ValueError("No test examples fit within max_length")
     if balanced and scored != test_limit:
         raise ValueError("Balanced evaluation lost examples to the context limit; reduce --balanced-per-label or raise max_length")
+    evaluation_decoding["seed"] = args.evaluation_seed
+    generation_metric = score_generations(task, examples)
     result = {
         "task": task["name"], "run_dir": str(args.run_dir), "device": device,
         "split": args.split,
         "model": "starting_model" if args.base_only else "trained_run",
-        "sampling": {"method": "balanced_per_label", "per_label": args.balanced_per_label, "seed": summary["seed"]}
-                    if balanced else {"method": "random", "seed": summary["seed"]},
+        "sampling": {"method": "balanced_per_label", "per_label": args.balanced_per_label, "seed": args.evaluation_seed}
+                    if balanced else {"method": "random", "seed": args.evaluation_seed},
+        "training_seed": summary["seed"],
         "prepared_artifacts": prepared_artifacts,
         "run_manifest_schema": manifest["schema_version"] if manifest else None,
         "decoding": evaluation_decoding,
         f"{args.split}_examples": scored, "skipped_for_length": skipped,
         "response_tokens": total_tokens, "response_loss": total_loss / total_tokens,
         "response_perplexity": math.exp(total_loss / total_tokens),
-        "generation_metric": score_generations(task, examples),
+        "generation_metric": generation_metric,
+        "generation_confidence_interval": bootstrap_intervals(task, examples, args.evaluation_seed),
         "examples": examples,
     }
     if balanced:

@@ -6,7 +6,9 @@ The project has two parts:
   learning scripts.
 - `tasks/*.json` plus the `src/{prepare,train,evaluate,infer}_task.py`
   entry points provide a reusable path for a new text input → text output
-  task. `src/task_core.py` and `src/task_metrics.py` hold shared logic.
+  task. Focused `task_config.py`, `task_prompts.py`, `task_io.py`, and
+  `task_model.py` modules hold shared logic; `task_core.py` is a compatibility
+  import layer for older scripts.
 
 The shared prepared format is one JSON object per line. `inputs` retains the
 original prompt fields for task-specific checks:
@@ -284,3 +286,66 @@ learning paths; they are not yet connected to these task files. The generic
 evaluator reports response loss, sample text, and the configured task metric
 where one exists. Generated text still needs human review where factual
 accuracy matters.
+
+## Governed run controls
+
+The included task files pin their dataset and default base-model revisions.
+`prompt_version` is stored alongside the prompt hash. Preparation records a
+local source file hash when using JSONL instead of Hub data. New training runs
+save schema 2 lineage and the resolved task configuration in the run directory.
+Inference and evaluation read those saved settings, not the current task file.
+The shared generator applies the same decoding behavior in both commands.
+See the [architecture diagram](architecture.md).
+
+The audit reports likely near duplicates across splits, label counts, and
+patterns resembling PII or secrets. Its near-duplicate test is heuristic.
+Secret patterns stop preparation and training by default; PII and near
+duplicates are review findings unless the task policy makes them fatal.
+Training also counts full prompt-plus-response lengths using the resolved
+tokenizer. Set `data_quality.max_overlength_fraction` in the task JSON to
+make a high skipped-row fraction fail the run. The historical data and runs
+remain separate from newly prepared, pinned data.
+
+For a long run, set a checkpoint interval and resume after an interruption
+with unchanged settings:
+
+```bash
+.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --data-dir data/tasks/emotion_classification_clean --output-dir models/tasks/emotion_classification/new-512 --save-steps 100
+.venv/bin/python src/train_task.py --task tasks/emotion_classification.json --data-dir data/tasks/emotion_classification_clean --output-dir models/tasks/emotion_classification/new-512 --save-steps 100 --resume-from-checkpoint latest
+```
+
+The second command is only for an interrupted run with a saved checkpoint;
+a completed run should get a new output directory. The resume guard compares
+task, prepared data, base model, sample counts, and training settings.
+Training and saved-run loading require safetensors model weights and disable
+remote model code. Set `HF_TOKEN` in the shell environment for private Hub
+resources; keep it out of task JSON and Git.
+
+Evaluation records a case-bootstrap 95% interval for supported generation
+metrics. Use the same `--evaluation-seed` (default 42), split, and case count
+when comparing runs. An interval describes uncertainty from the selected
+held-out cases, not variation across training runs. For that, train separate
+runs with distinct `--seed` values, evaluate the same cases, then aggregate:
+
+```bash
+.venv/bin/python src/summarize_seed_runs.py models/tasks/emotion_classification/seed-1/test_evaluation.json models/tasks/emotion_classification/seed-2/test_evaluation.json --output results/emotion_seed_summary.json
+```
+
+The tool requires matching task, data, model setup, and generated cases. It
+reports each score, the mean, and sample standard deviation. It does not
+itself train the additional models.
+
+For the included emotion task, evaluate the adapter and base model on the
+same test cases, then apply the example promotion rule:
+
+```bash
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/new-512 --split test --test-samples 128 --generation-examples 128
+.venv/bin/python src/evaluate_task.py --run-dir models/tasks/emotion_classification/new-512 --split test --test-samples 128 --generation-examples 128 --base-only
+.venv/bin/python src/promote_run.py --run-dir models/tasks/emotion_classification/new-512
+```
+
+The rule requires at least 128 generated test cases, accuracy ≥ 0.70, macro-F1 ≥ 0.55, accuracy lift over the
+base ≥ 0.05, and zero invalid labels. These are example thresholds for the
+emotion task, not a validated organizational standard. A passing decision
+creates a local record under `models/registry/`; it does not deploy the model.
+The other tasks need task-specific thresholds before promotion.

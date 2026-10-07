@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 
 from run_lineage import load_run_manifest
-from task_core import choose_device, format_prompt, load_saved_run, load_task
+from task_config import load_task
 from task_generation import generate_text
+from task_model import choose_device, load_saved_run
+from task_prompts import format_prompt
 
 
 def parse_inputs(items):

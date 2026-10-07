@@ -16,3 +16,5 @@ See the [experiment guide](../../docs/horoscope_experiments.md) for current
 commands and the [learning journal](../../hugging_face_fine_tuning_learnings.md)
 for the sequence of experiments. The reusable horoscope scenario is
 configured separately in [tasks/horoscope.json](../../tasks/horoscope.json).
+New horoscope runs should use the [governed example](../../examples/horoscope_governed.md)
+to capture the same lineage and checks as the other tasks.
