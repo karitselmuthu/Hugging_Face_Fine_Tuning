@@ -4,8 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from run_lineage import load_run_manifest
-from task_config import load_task
+from run_lineage import load_run_task
 from task_generation import generate_text
 from task_model import choose_device, load_saved_run
 from task_prompts import format_prompt
@@ -33,7 +32,7 @@ def main():
     parser.add_argument("--repetition-penalty", type=float)
     parser.add_argument("--seed", type=int)
     args = parser.parse_args()
-    manifest = load_run_manifest(args.run_dir)
+    task, manifest = load_run_task(args.run_dir)
     settings = dict(manifest["decoding_defaults"]) if manifest else {
         "max_new_tokens": 80, "temperature": 0.8, "top_p": 0.9,
         "repetition_penalty": 1.1, "seed": 42}
@@ -43,7 +42,6 @@ def main():
             settings[name] = value
     if settings["max_new_tokens"] < 1 or settings["temperature"] < 0 or not 0 < settings["top_p"] <= 1 or settings["repetition_penalty"] <= 0:
         parser.error("Check generation settings: max tokens > 0, temperature >= 0, 0 < top-p <= 1, repetition penalty > 0")
-    task = load_task(args.run_dir / "task_config.json")
     try:
         values = json.loads(args.input_json.read_text()) if args.input_json else {}
         values.update(parse_inputs(args.input))

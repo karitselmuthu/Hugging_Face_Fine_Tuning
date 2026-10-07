@@ -5,8 +5,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from run_lineage import file_sha256, load_run_manifest
-from task_config import load_task
+from run_lineage import file_sha256, load_run_task
 from task_io import ROOT
 
 
@@ -56,10 +55,9 @@ def main():
     parser.add_argument("--evaluation", type=Path)
     parser.add_argument("--base-evaluation", type=Path)
     args = parser.parse_args()
-    manifest = load_run_manifest(args.run_dir)
+    task, manifest = load_run_task(args.run_dir)
     if manifest is None:
         parser.error("Promotion requires a versioned run manifest")
-    task = load_task(args.run_dir / "task_config.json")
     evaluation_path = args.evaluation or args.run_dir / "test_evaluation.json"
     base_path = args.base_evaluation or args.run_dir / "base_test_evaluation.json"
     trained = json.loads(evaluation_path.read_text(encoding="utf-8"))

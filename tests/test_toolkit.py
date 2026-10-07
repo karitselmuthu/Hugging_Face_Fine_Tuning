@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from data_integrity import prompt_overlap, snapshot_prepared_data, verify_prepared_data  # noqa: E402
-from run_lineage import load_run_manifest, verify_run_data, write_run_manifest  # noqa: E402
+from run_lineage import file_sha256, load_run_manifest, load_run_task, verify_run_data, write_run_manifest  # noqa: E402
 from task_config import load_task, preparation_spec  # noqa: E402
 
 
@@ -103,7 +103,22 @@ class PreparationTests(unittest.TestCase):
         write_run_manifest(run_dir, load_task(self.task_path), summary, self.output_dir, "abc123")
         manifest = load_run_manifest(run_dir)
         self.assertEqual(manifest["starting_model"]["resolved_revision"], "abc123")
+        resolved_task, _ = load_run_task(run_dir)
+        self.assertEqual(resolved_task["prompt_template"], load_task(run_config)["prompt_template"])
         verify_run_data(manifest, self.output_dir, verify_prepared_data(self.output_dir))
+        resolved_path = run_dir / "resolved_config.json"
+        original_resolved = resolved_path.read_text()
+        altered = json.loads(original_resolved)
+        altered["task"]["max_length"] += 1
+        resolved_path.write_text(json.dumps(altered))
+        manifest_path = run_dir / "run_manifest.json"
+        manifest["resolved_config_sha256"] = file_sha256(resolved_path)
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "Resolved run task differs"):
+            load_run_task(run_dir)
+        resolved_path.write_text(original_resolved)
+        manifest["resolved_config_sha256"] = file_sha256(resolved_path)
+        manifest_path.write_text(json.dumps(manifest))
         (run_dir / "final" / "adapter_model.safetensors").write_bytes(b"changed weights")
         with self.assertRaisesRegex(ValueError, "Saved model artifacts differ"):
             load_run_manifest(run_dir)

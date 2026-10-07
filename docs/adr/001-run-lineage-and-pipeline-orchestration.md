@@ -13,8 +13,8 @@ prompt, source, and decoding settings into one run record.
 Each new training run writes `resolved_config.json` and a schema 2
 `run_manifest.json`. Evaluation checks saved files and prepared-data
 fingerprints before loading model weights; inference checks the saved run.
-Both commands use `task_generation.generate_text()`. The task JSON copied
-into the run is their configuration source.
+Both commands use `task_generation.generate_text()`. They load the resolved
+task from the run and reject a mismatch with the copied task JSON.
 
 The manifest records the task and resolved-config hashes, prompt hash and
 version, prepared file hashes and counts, preparation manifest hash, saved

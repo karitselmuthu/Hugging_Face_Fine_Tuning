@@ -10,7 +10,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from data_integrity import verify_prepared_data
-from run_lineage import load_run_manifest, verify_run_data
+from run_lineage import load_run_task, verify_run_data
 from task_config import load_task, preparation_spec
 from task_generation import generate_text
 from task_io import prepared_dir, read_jsonl
@@ -49,8 +49,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--base-only", action="store_true", help="Score the starting model without the saved adapter")
     args = parser.parse_args()
-    manifest = load_run_manifest(args.run_dir)
-    task = load_task(args.run_dir / "task_config.json")
+    task, manifest = load_run_task(args.run_dir)
     evaluation = task.get("evaluation", {})
     balanced = args.balanced_per_label is not None
     if balanced:

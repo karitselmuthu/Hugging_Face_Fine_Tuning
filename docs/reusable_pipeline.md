@@ -293,7 +293,8 @@ The included task files pin their dataset and default base-model revisions.
 `prompt_version` is stored alongside the prompt hash. Preparation records a
 local source file hash when using JSONL instead of Hub data. New training runs
 save schema 2 lineage and the resolved task configuration in the run directory.
-Inference and evaluation read those saved settings, not the current task file.
+Inference and evaluation load the resolved settings and check them against
+the copied task file; they do not read the current task file.
 The shared generator applies the same decoding behavior in both commands.
 See the [architecture diagram](architecture.md).
 

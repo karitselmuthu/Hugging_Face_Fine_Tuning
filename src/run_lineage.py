@@ -133,6 +133,24 @@ def load_run_manifest(run_dir):
     return manifest
 
 
+def load_run_task(run_dir):
+    """Read the resolved task saved at training time, with a legacy fallback."""
+    from task_config import load_task
+
+    run_dir = Path(run_dir)
+    manifest = load_run_manifest(run_dir)
+    saved_task = load_task(run_dir / "task_config.json")
+    if manifest is None:
+        return saved_task, None
+    resolved = json.loads((run_dir / "resolved_config.json").read_text(encoding="utf-8"))
+    task = resolved.get("task")
+    if task != saved_task:
+        raise ValueError("Resolved run task differs from saved task configuration")
+    if task.get("name") != manifest["task"]:
+        raise ValueError("Resolved run task differs from run manifest")
+    return task, manifest
+
+
 def verify_run_data(manifest, data_dir, artifacts):
     if manifest is None:
         return

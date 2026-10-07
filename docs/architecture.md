@@ -30,7 +30,8 @@ flowchart LR
 ```
 
 The task file is the input to preparation and training. Evaluation and
-inference read the task configuration copied into the run. The preparation
+inference load the resolved task stored in the run and verify that it agrees
+with the copied task configuration. The preparation
 manifest fingerprints the files; the run manifest binds the saved config,
 model artifacts, prepared-data snapshot, model and tokenizer revisions,
 prompt version, seed, decoding defaults, Git state, and library versions.
